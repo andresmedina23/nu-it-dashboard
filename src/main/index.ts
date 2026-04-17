@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, dialog, Menu } from 'electron'
 import { join } from 'path'
 import { spawn } from 'child_process'
 import * as os from 'os'
@@ -33,8 +33,66 @@ function createWindow() {
   }
 }
 
+function buildMenu() {
+  const isProd = !process.env['ELECTRON_RENDERER_URL']
+
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: app.name,
+      submenu: [
+        { label: `IT Dashboard v${app.getVersion()}`, enabled: false },
+        { type: 'separator' },
+        {
+          label: 'Buscar actualizaciones...',
+          click: () => {
+            if (isProd) {
+              autoUpdater['_manualCheck'] = true
+              autoUpdater.checkForUpdates()
+            } else {
+              dialog.showMessageBox({ type: 'info', title: 'Dev mode', message: 'Auto-updater solo funciona en producción.', buttons: ['OK'] })
+            }
+          },
+        },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit', label: 'Cerrar IT Dashboard' },
+      ],
+    },
+    {
+      label: 'Editar',
+      submenu: [
+        { role: 'undo', label: 'Deshacer' },
+        { role: 'redo', label: 'Rehacer' },
+        { type: 'separator' },
+        { role: 'cut', label: 'Cortar' },
+        { role: 'copy', label: 'Copiar' },
+        { role: 'paste', label: 'Pegar' },
+        { role: 'selectAll', label: 'Seleccionar todo' },
+      ],
+    },
+    {
+      label: 'Ventana',
+      submenu: [
+        { role: 'minimize', label: 'Minimizar' },
+        { role: 'zoom', label: 'Zoom' },
+        { type: 'separator' },
+        { role: 'front', label: 'Traer al frente' },
+      ],
+    },
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 app.whenReady().then(() => {
   createWindow()
+  buildMenu()
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -43,20 +101,35 @@ app.whenReady().then(() => {
   if (!process.env['ELECTRON_RENDERER_URL']) {
     autoUpdater.checkForUpdates()
 
-    autoUpdater.on('update-available', () => {
+    autoUpdater.on('update-available', ({ version }) => {
       dialog.showMessageBox({
         type: 'info',
         title: 'Actualización disponible',
-        message: 'Hay una nueva versión de IT Dashboard. Se descargará en segundo plano.',
+        message: `Nueva versión ${version} disponible`,
+        detail: 'Se descargará en segundo plano. Te avisaremos cuando esté lista.',
         buttons: ['OK'],
       })
     })
 
-    autoUpdater.on('update-downloaded', () => {
+    autoUpdater.on('update-not-available', () => {
+      // Solo mostrar si el usuario lo pidió manualmente (via menú)
+      if (autoUpdater['_manualCheck']) {
+        autoUpdater['_manualCheck'] = false
+        dialog.showMessageBox({
+          type: 'info',
+          title: 'Sin actualizaciones',
+          message: 'Ya tienes la versión más reciente.',
+          buttons: ['OK'],
+        })
+      }
+    })
+
+    autoUpdater.on('update-downloaded', ({ version }) => {
       dialog.showMessageBox({
         type: 'info',
-        title: 'Listo para actualizar',
-        message: 'La actualización está lista. La app se reiniciará para instalarla.',
+        title: '¡Actualización lista!',
+        message: `IT Dashboard ${version} está listo para instalar`,
+        detail: 'La app se reiniciará para aplicar la actualización.',
         buttons: ['Reiniciar ahora', 'Más tarde'],
       }).then(({ response }) => {
         if (response === 0) autoUpdater.quitAndInstall()
