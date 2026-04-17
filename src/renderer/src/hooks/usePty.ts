@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import type { Section, CommandEntry } from '../types'
 
 let sessionCounter = 0
 
@@ -10,16 +11,20 @@ export interface AutoResponse {
   once?: boolean // default true — only respond once per session
 }
 
-export function usePty(autoResponses?: AutoResponse[]) {
+export function usePty(autoResponses?: AutoResponse[], currentSection?: Section) {
   const [output, setOutput] = useState('')
   const [running, setRunning] = useState(false)
   const [exitCode, setExitCode] = useState<number | null>(null)
+  const [history, setHistory] = useState<CommandEntry[]>([])
   const sessionIdRef = useRef(`pty-${++sessionCounter}`)
   const cleanupRef = useRef<(() => void) | null>(null)
   const firedRef = useRef<Set<number>>(new Set())   // tracks which autoResponses already fired
   const outputBufRef = useRef('')                    // buffer for pattern matching
+  const currentSectionRef = useRef(currentSection)
 
-  const startSession = useCallback(() => {
+  useEffect(() => { currentSectionRef.current = currentSection }, [currentSection])
+
+  const startSession = useCallback((label: string) => {
     window.electronAPI.ptyKill(sessionIdRef.current)
     cleanupRef.current?.()
 
@@ -31,6 +36,15 @@ export function usePty(autoResponses?: AutoResponse[]) {
     setRunning(true)
 
     const id = sessionIdRef.current
+    const entryId = id
+
+    const entry: CommandEntry = {
+      id: entryId,
+      label,
+      section: currentSectionRef.current ?? 'diagnostico',
+      startedAt: new Date(),
+    }
+    setHistory(prev => [entry, ...prev])
 
     const removeData = window.electronAPI.onPtyData(id, (data) => {
       outputBufRef.current += data
@@ -60,6 +74,9 @@ export function usePty(autoResponses?: AutoResponse[]) {
       // Exit code 1 from `it inventory` often means success — normalize
       setExitCode(code)
       removeData()
+      setHistory(prev => prev.map(e =>
+        e.id === entryId ? { ...e, endedAt: new Date(), exitCode: code } : e
+      ))
     })
 
     cleanupRef.current = removeData
@@ -67,12 +84,15 @@ export function usePty(autoResponses?: AutoResponse[]) {
   }, [autoResponses])
 
   const runCommand = useCallback(async (command: string, args: string[]) => {
-    const id = startSession()
+    const label = [command, ...args].join(' ')
+    const id = startSession(label)
     await window.electronAPI.ptyStart(id, command, args)
   }, [startSession])
 
   const runScript = useCallback(async (script: string) => {
-    const id = startSession()
+    const firstLine = script.split('\n').find(l => l.trim() && !l.trim().startsWith('#'))?.trim() ?? 'script'
+    const label = `script: ${firstLine.slice(0, 60)}`
+    const id = startSession(label)
     await window.electronAPI.ptyScript(id, script)
   }, [startSession])
 
@@ -95,5 +115,5 @@ export function usePty(autoResponses?: AutoResponse[]) {
 
   useEffect(() => () => { cleanupRef.current?.() }, [])
 
-  return { output, running, exitCode, sessionId: sessionIdRef.current, runCommand, runScript, sendInput, kill, clear }
+  return { output, running, exitCode, history, sessionId: sessionIdRef.current, runCommand, runScript, sendInput, kill, clear }
 }

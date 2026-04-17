@@ -1,5 +1,14 @@
 export type Section = 'diagnostico' | 'nucli' | 'jamf' | 'certificados' | 'yubikey' | 'inventario'
 
+export interface CommandEntry {
+  id: string
+  label: string
+  section: Section
+  startedAt: Date
+  endedAt?: Date
+  exitCode?: number | null
+}
+
 export interface CredStatus {
   expires: string
   status: 'ok' | 'warn' | 'expired' | 'missing'

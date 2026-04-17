@@ -19,8 +19,6 @@ const STATUS_COLOR = {
   missing: { pill: 'bg-[#4A1D7A]/20 border-[#4A1D7A]   text-[#C9B3D9]/40', dot: 'bg-[#4A1D7A]', glow: '' },
 }
 
-interface Pill { key: string; label: string; data: CredStatus }
-
 function StatusPill({ label, data }: { label: string; data: CredStatus }) {
   const c = STATUS_COLOR[data.status]
   return (
@@ -64,7 +62,6 @@ export default function StatusBar() {
 
   const missing: CredStatus = { expires: '', status: 'missing' }
   const anyExpired = [...AWS_PROFILES, ...NU_TOKENS].some(p => creds[p.key]?.status === 'expired')
-  const anyWarn    = [...AWS_PROFILES, ...NU_TOKENS].some(p => creds[p.key]?.status === 'warn')
 
   return (
     <div className="drag flex items-center justify-between px-4 py-2 bg-[#0F001E] border-b border-[#4A1D7A]/40 flex-shrink-0 min-h-[42px]">
