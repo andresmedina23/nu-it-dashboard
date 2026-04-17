@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  html, body, #root { height: 100%; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #0F001E;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+  /* Allow text selection in terminal and inputs */
+  .selectable { user-select: text; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #4A1D7A; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #820AD1; }
+}
+
+@layer components {
+  .nu-card {
+    @apply bg-[#2C1052] border border-[#4A1D7A] rounded-xl p-4;
+  }
+  .nu-btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm
+           bg-[#820AD1] hover:bg-[#A842FF] text-white transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] cursor-pointer
+           shadow-lg shadow-[#820AD1]/20;
+  }
+  .nu-btn-ghost {
+    @apply inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium
+           bg-transparent hover:bg-[#4A1D7A]/30 text-[#C9B3D9] border border-[#4A1D7A]
+           transition-all duration-200 cursor-pointer;
+  }
+  .nu-input {
+    @apply w-full bg-[#1C0035] border border-[#4A1D7A] rounded-lg px-3 py-2.5 text-sm
+           text-white placeholder-[#C9B3D9]/30 outline-none
+           focus:border-[#820AD1] focus:ring-1 focus:ring-[#820AD1]/40
+           transition-all duration-200 selectable;
+  }
+  .nu-label {
+    @apply block text-[11px] font-semibold text-[#C9B3D9]/60 mb-1.5 uppercase tracking-widest;
+  }
+}
+
+/* Titlebar drag */
+.drag { -webkit-app-region: drag; }
+.no-drag { -webkit-app-region: no-drag; }
+
+/* Terminal font */
+.terminal-out {
+  font-family: 'JetBrains Mono', 'Menlo', 'Monaco', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Sidebar active gradient */
+.sidebar-active {
+  background: linear-gradient(135deg, rgba(130,10,209,0.9) 0%, rgba(91,10,145,0.9) 100%);
+  box-shadow: 0 0 20px rgba(130,10,209,0.25), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+/* Status pill glow */
+.status-ok    { box-shadow: 0 0 8px rgba(13,186,106,0.4); }
+.status-warn  { box-shadow: 0 0 8px rgba(246,174,45,0.4); }
+.status-dead  { box-shadow: 0 0 8px rgba(224,64,69,0.4); }
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.cursor-blink { animation: blink 1s step-end infinite; }

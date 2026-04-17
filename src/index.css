@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: #0F001E;
+    color: #ffffff;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1C0035;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #4A1D7A;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #820AD1;
+  }
+}
+
+@layer components {
+  .nu-card {
+    @apply bg-nu-card border border-nu-border rounded-xl p-5;
+  }
+
+  .nu-btn {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm
+           transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .nu-btn-primary {
+    @apply nu-btn bg-nu-purple hover:bg-nu-accent text-white shadow-lg
+           hover:shadow-nu-purple/30 active:scale-[0.98];
+  }
+
+  .nu-btn-ghost {
+    @apply nu-btn bg-transparent hover:bg-nu-border/30 text-nu-light border border-nu-border;
+  }
+
+  .nu-input {
+    @apply w-full bg-nu-dark border border-nu-border rounded-lg px-3 py-2.5 text-sm
+           text-white placeholder-nu-light/40 outline-none
+           focus:border-nu-purple focus:ring-1 focus:ring-nu-purple/50
+           transition-all duration-200;
+  }
+
+  .nu-label {
+    @apply block text-xs font-medium text-nu-light/70 mb-1.5 uppercase tracking-wider;
+  }
+
+  .terminal-line {
+    @apply font-mono text-xs leading-relaxed whitespace-pre-wrap break-words;
+  }
+}
+
+/* Animated gradient border on active sidebar item */
+.sidebar-active {
+  background: linear-gradient(135deg, #820AD1 0%, #5B0A91 100%);
+  box-shadow: 0 0 20px rgba(130, 10, 209, 0.35);
+}
+
+/* Terminal glow effect */
+.terminal-glow {
+  box-shadow: inset 0 0 30px rgba(130, 10, 209, 0.05);
+}
+
+/* Loading shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, #2C1052 25%, #4A1D7A 50%, #2C1052 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}

@@ -1,0 +1,68 @@
+{
+  "name": "nu-it-dashboard",
+  "version": "1.0.0",
+  "description": "IT Assistant — Nubank Colombia",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "rebuild-pty": "electron-rebuild -f -w node-pty",
+    "pack": "electron-vite build && electron-builder --mac --publish never",
+    "release": "electron-vite build && electron-builder --mac --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3",
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.4.16",
+    "electron": "^41.2.1",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^5.0.0",
+    "postcss": "^8.4.31",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.3.2"
+  },
+  "build": {
+    "appId": "co.nubank.it-dashboard",
+    "productName": "IT Dashboard",
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/node-pty/**"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "IT Dashboard — Nubank CO",
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    },
+    "directories": {
+      "output": "release"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "andresmedina23",
+      "repo": "nu-it-dashboard"
+    }
+  }
+}
