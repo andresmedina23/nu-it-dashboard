@@ -32,7 +32,7 @@
   },
   "build": {
     "appId": "co.nubank.it-dashboard",
-    "productName": "IT Dashboard",
+    "productName": "IT-Dashboard",
     "asar": true,
     "asarUnpack": [
       "**/node_modules/node-pty/**"
