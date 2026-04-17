@@ -9,17 +9,27 @@ done
 echo ""
 echo "=== Dependencias nucli ==="
 printf "  %-20s" "bash version"
-bash_ver=$(bash --version | head -1 | grep -o '[0-9]*\.[0-9]*' | head -1)
-bash_major=$(echo $bash_ver | cut -d. -f1)
-if [ "$bash_major" -ge 4 ] 2>/dev/null; then echo "✓ $bash_ver"; else echo "✗ $bash_ver (necesita 4+)"; fi
+BASH_VER=$(bash --version 2>&1 | head -1 | sed 's/.*version //;s/[^0-9.].*//')
+BASH_MAJOR=$(echo "$BASH_VER" | cut -d. -f1)
+if [ "$BASH_MAJOR" -ge 4 ] 2>/dev/null; then echo "✓ $BASH_VER"; else echo "✗ $BASH_VER (necesita 4+)"; fi
 printf "  %-20s" "gawk"
-if command -v gawk > /dev/null 2>&1 || (command -v awk > /dev/null 2>&1 && awk --version 2>&1 | grep -q GNU); then echo "✓ OK"; else echo "✗ NO ENCONTRADO (necesita GNU awk)"; fi
+if command -v gawk > /dev/null 2>&1; then echo "✓ OK"
+elif command -v awk > /dev/null 2>&1 && awk --version 2>&1 | grep -q GNU; then echo "✓ OK (GNU awk)"
+else echo "✗ NO ENCONTRADO (necesita GNU awk)"; fi
+echo ""
+echo "=== Homebrew ==="
+printf "  %-20s" "brew"
+if command -v brew > /dev/null 2>&1; then
+  echo "✓ $(brew --version | head -1)"
+else
+  echo "✗ NO INSTALADO — clic en 'Instalar Homebrew' abajo"
+fi
 echo ""
 echo "=== Autenticación ==="
 printf "  %-20s" "nu auth"
-nu auth whoami > /dev/null 2>&1 && echo "✓ OK" || echo "✗ FALLO"
+nu auth whoami > /dev/null 2>&1 && echo "✓ OK" || echo "✗ Token vencido o no configurado"
 printf "  %-20s" "nu-co auth"
-nu-co auth whoami > /dev/null 2>&1 && echo "✓ OK" || echo "✗ FALLO"
+nu-co auth whoami > /dev/null 2>&1 && echo "✓ OK" || echo "✗ Token vencido o no configurado"
 echo ""
 echo "=== SSH ==="
 printf "  %-20s" "~/.ssh"
@@ -28,19 +38,40 @@ printf "  %-20s" "id_ed25519.pub"
 [ -f "$HOME/.ssh/id_ed25519.pub" ] && echo "✓ OK" || echo "✗ NO"
 echo ""
 echo "=== Versiones CLI ==="
-it --version 2>&1 || echo "it: sin versión"
-nu --version 2>&1 || echo "nu: sin versión"
+printf "  %-20s" "it"
+it --version 2>/dev/null || echo "✗ NO INSTALADO"
+printf "  %-20s" "nu"
+nu --version 2>/dev/null || echo "✗ NO INSTALADO"
 echo ""
 echo "✓ Diagnóstico completado"
+`
+
+const installBrewScript = `
+echo "=== Instalando Homebrew ==="
+echo ""
+echo "⚠ Se pedirá tu contraseña de Mac (es normal)."
+echo ""
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+echo ""
+echo "→ Configurando PATH para Apple Silicon..."
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)" 2>/dev/null || true
+echo ""
+brew --version && echo "✓ Homebrew instalado correctamente" || echo "✗ Hubo un problema, revisa el output"
 `
 
 const fixDepsScript = `
 echo "=== Instalando dependencias nucli ==="
 echo ""
-echo "→ Instalando bash 5 (brew)..."
+if ! command -v brew > /dev/null 2>&1; then
+  echo "✗ Homebrew no está instalado."
+  echo "  Primero haz clic en 'Instalar Homebrew' y luego vuelve a correr esto."
+  exit 1
+fi
+echo "→ Instalando bash 5..."
 brew install bash
 echo ""
-echo "→ Instalando gawk (brew)..."
+echo "→ Instalando gawk..."
 brew install gawk
 echo ""
 echo "→ Versiones instaladas:"
@@ -79,24 +110,45 @@ export default function Diagnostico({ onScript, running }: Props) {
           : <><span>🔍</span> Ejecutar Diagnóstico</>}
       </button>
 
-      {/* Fix dependencias nucli */}
-      <div className="nu-card space-y-3">
-        <div>
-          <p className="text-sm font-semibold text-white">Reparar dependencias nucli</p>
-          <p className="text-[11px] text-[#C9B3D9]/50 mt-0.5">
-            Instala <span className="font-mono text-[#A842FF]">bash 5</span> y <span className="font-mono text-[#A842FF]">gawk</span> via Homebrew.
-            Necesario si ves errores de "Bash version is ancient" o "GNU awk not found".
-          </p>
+      <div className="space-y-2">
+        {/* Paso 1: Homebrew */}
+        <div className="nu-card space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-white">1 · Instalar Homebrew</p>
+            <p className="text-[11px] text-[#C9B3D9]/50 mt-0.5">
+              Requerido si <span className="font-mono text-[#A842FF]">brew</span> no está instalado.
+              Se pedirá contraseña de Mac.
+            </p>
+          </div>
+          <button
+            onClick={() => onScript(installBrewScript.trim())}
+            disabled={running}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium
+                       bg-[#0DBA6A]/10 border border-[#0DBA6A]/40 text-[#0DBA6A]
+                       hover:bg-[#0DBA6A]/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            <span>🍺</span> Instalar Homebrew
+          </button>
         </div>
-        <button
-          onClick={() => onScript(fixDepsScript.trim())}
-          disabled={running}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium
-                     bg-[#F6AE2D]/10 border border-[#F6AE2D]/40 text-[#F6AE2D]
-                     hover:bg-[#F6AE2D]/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-        >
-          <span>🔧</span> Instalar bash 5 + gawk
-        </button>
+
+        {/* Paso 2: bash + gawk */}
+        <div className="nu-card space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-white">2 · Instalar bash 5 + gawk</p>
+            <p className="text-[11px] text-[#C9B3D9]/50 mt-0.5">
+              Necesario si ves <span className="text-[#F6AE2D]">"Bash version is ancient"</span> o <span className="text-[#F6AE2D]">"GNU awk not found"</span>.
+            </p>
+          </div>
+          <button
+            onClick={() => onScript(fixDepsScript.trim())}
+            disabled={running}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium
+                       bg-[#F6AE2D]/10 border border-[#F6AE2D]/40 text-[#F6AE2D]
+                       hover:bg-[#F6AE2D]/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            <span>🔧</span> Instalar bash 5 + gawk
+          </button>
+        </div>
       </div>
     </div>
   )
