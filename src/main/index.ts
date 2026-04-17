@@ -145,6 +145,24 @@ app.on('window-all-closed', () => {
 // ─── PTY Sessions ──────────────────────────────────────────
 const ptyMap = new Map<string, pty.IPty>()
 
+// Construye el PATH incluyendo Homebrew y paths comunes que Electron no hereda
+function buildPtyEnv() {
+  const extraPaths = [
+    '/opt/homebrew/bin',       // Homebrew Apple Silicon
+    '/opt/homebrew/sbin',
+    '/usr/local/bin',          // Homebrew Intel
+    '/usr/local/sbin',
+    `${os.homedir()}/.nvm/versions/node/current/bin`,
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+  ]
+  const currentPath = process.env.PATH || ''
+  const mergedPath = [...extraPaths, currentPath].filter(Boolean).join(':')
+  return { ...process.env, PATH: mergedPath, TERM: 'xterm-256color', FORCE_COLOR: '1' }
+}
+
 // ─── Credential Status (no commands needed) ─────────────────
 type TokenStatus = { expires: string; status: 'ok' | 'warn' | 'expired' | 'missing' }
 
@@ -202,7 +220,7 @@ async function discoverCommands(): Promise<Record<string, string[]>> {
     new Promise((resolve) => {
       let out = ''
       const p = spawn(shell, ['-c', `source "${nurcPath}" 2>/dev/null || true; ${cmd}`], {
-        env: { ...process.env },
+        env: buildPtyEnv(),
       })
       p.stdout?.on('data', (d) => (out += d))
       p.stderr?.on('data', (d) => (out += d))
@@ -254,7 +272,7 @@ ipcMain.handle('pty:start', (event, { id, command, args }: { id: string; command
     cols: 120,
     rows: 40,
     cwd: os.homedir(),
-    env: { ...process.env, TERM: 'xterm-256color', FORCE_COLOR: '1' },
+    env: buildPtyEnv(),
   })
 
   ptyMap.set(id, term)
@@ -288,7 +306,7 @@ ipcMain.handle('pty:script', (event, { id, script }: { id: string; script: strin
     cols: 120,
     rows: 40,
     cwd: os.homedir(),
-    env: { ...process.env, TERM: 'xterm-256color', FORCE_COLOR: '1' },
+    env: buildPtyEnv(),
   })
 
   ptyMap.set(id, term)
