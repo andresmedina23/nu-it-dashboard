@@ -1,6 +1,6 @@
 {
   "name": "nu-it-dashboard",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "IT Assistant — Nubank Colombia",
   "main": "out/main/index.js",
   "scripts": {
@@ -38,6 +38,7 @@
       "**/node_modules/node-pty/**"
     ],
     "mac": {
+      "icon": "build/icon.icns",
       "category": "public.app-category.developer-tools",
       "target": [
         {
