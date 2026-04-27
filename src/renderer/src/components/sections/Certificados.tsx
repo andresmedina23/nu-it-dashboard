@@ -20,6 +20,9 @@ const TABS = [
   { id: 'flujo' as Tab, label: 'Flujo Completo', icon: '⚡', needsVlan: true },
 ]
 
+// Solo permite caracteres válidos de email — previene inyección en scripts de shell
+function safeEmail(e: string) { return e.replace(/[^a-zA-Z0-9._%+\-@]/g, '') }
+
 export default function Certificados({ onRun, onScript, running }: Props) {
   const [tab, setTab] = useState<Tab>('nubanker_nu')
   const [email, setEmail] = useState('')
@@ -28,11 +31,12 @@ export default function Certificados({ onRun, onScript, running }: Props) {
   const current = TABS.find(t => t.id === tab)!
 
   const handleRun = () => {
-    if (tab === 'nubanker_nu') onRun('nu', ['certs', 'gen', 'nubanker', 'prod', email])
-    else if (tab === 'network_nu') onRun('nu', ['certs', 'gen', 'network', 'prod', email, vlan])
-    else if (tab === 'nubanker_link') onScript(`nu-ist certs gen nubanker prod "${email}" --overwrite\nnu-ist certs gen-link nubanker "${email}"`)
-    else if (tab === 'network_link') onScript(`nu-ist certs gen network prod "${email}" "${vlan}"\nnu-ist certs gen-link network "${email}"`)
-    else if (tab === 'flujo') onScript(`echo "→ Paso 1: Certificado Nubanker"\nnu-ist certs gen nubanker prod "${email}" --overwrite\nnu-ist certs gen-link nubanker "${email}"\necho "→ Paso 2: Certificado Red"\nnu-ist certs gen network prod "${email}" "${vlan}"\nnu-ist certs gen-link network "${email}"\necho "✓ Flujo completado"`)
+    const e = safeEmail(email)
+    if (tab === 'nubanker_nu') onRun('nu', ['certs', 'gen', 'nubanker', 'prod', e])
+    else if (tab === 'network_nu') onRun('nu', ['certs', 'gen', 'network', 'prod', e, vlan])
+    else if (tab === 'nubanker_link') onScript(`nu-ist certs gen nubanker prod "${e}" --overwrite\nnu-ist certs gen-link nubanker "${e}"`)
+    else if (tab === 'network_link') onScript(`nu-ist certs gen network prod "${e}" "${vlan}"\nnu-ist certs gen-link network "${e}"`)
+    else if (tab === 'flujo') onScript(`echo "→ Paso 1: Certificado Nubanker"\nnu-ist certs gen nubanker prod "${e}" --overwrite\nnu-ist certs gen-link nubanker "${e}"\necho "→ Paso 2: Certificado Red"\nnu-ist certs gen network prod "${e}" "${vlan}"\nnu-ist certs gen-link network "${e}"\necho "✓ Flujo completado"`)
   }
 
   const isValid = () => !!(email.trim() && (!current.needsVlan || vlan))

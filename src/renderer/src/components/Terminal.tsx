@@ -16,9 +16,25 @@ function stripAnsi(str: string): string {
             .replace(/\x1b[=>]/g, '')
 }
 
+// Simula el comportamiento de un terminal real con \r:
+// Primero normaliza \r\n (PTY/Windows) → \n para no perder texto normal.
+// Luego maneja \r sueltos (spinners que sobreescriben la línea).
+function processCarriageReturns(text: string): string {
+  const normalized = text.replace(/\r\n/g, '\n')
+  return normalized.split('\n').map(line => {
+    if (!line.includes('\r')) return line
+    const parts = line.split('\r')
+    // Toma el último segmento no vacío (el texto visible más reciente)
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (parts[i]) return parts[i]
+    }
+    return ''
+  }).join('\n')
+}
+
 // Colorize known patterns
 function colorizeOutput(text: string): JSX.Element[] {
-  const lines = text.split('\n')
+  const lines = processCarriageReturns(text).split('\n')
   return lines.map((line, i) => {
     const plain = stripAnsi(line)
     let cls = 'text-green-300'
@@ -43,7 +59,7 @@ export default function Terminal({ output, running, exitCode, onInput, onClear }
   const [inputVal, setInputVal] = useState('')
 
   // Check if last line is a prompt (y/n, password, etc.)
-  const lastLines = output.split('\n').filter(l => l.trim()).slice(-3).join(' ').toLowerCase()
+  const lastLines = processCarriageReturns(output).split('\n').filter(l => l.trim()).slice(-3).join(' ').toLowerCase()
   const isPrompting = running && lastLines.match(/\[y\/n\]|\(y\/n\)|password:|confirm|continuar|proceed/)
 
   useEffect(() => {

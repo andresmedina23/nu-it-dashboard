@@ -21,6 +21,10 @@ export function usePty(autoResponses?: AutoResponse[], currentSection?: Section)
   const firedRef = useRef<Set<number>>(new Set())   // tracks which autoResponses already fired
   const outputBufRef = useRef('')                    // buffer for pattern matching
   const currentSectionRef = useRef(currentSection)
+  // Always-current ref so onPtyData listeners read latest autoResponses
+  // even when setAutoResponses is called just before runScript in the same tick
+  const autoResponsesRef = useRef(autoResponses)
+  autoResponsesRef.current = autoResponses
 
   useEffect(() => { currentSectionRef.current = currentSection }, [currentSection])
 
@@ -50,9 +54,11 @@ export function usePty(autoResponses?: AutoResponse[], currentSection?: Section)
       outputBufRef.current += data
       setOutput(prev => prev + data)
 
-      // Check auto-responses
-      if (autoResponses) {
-        autoResponses.forEach((ar, idx) => {
+      // Check auto-responses (use ref so we always see the latest value,
+      // even if setAutoResponses was called just before runScript in the same tick)
+      const currentAutoResponses = autoResponsesRef.current
+      if (currentAutoResponses) {
+        currentAutoResponses.forEach((ar, idx) => {
           const alreadyFired = firedRef.current.has(idx)
           if (alreadyFired && ar.once !== false) return
           // once:false → check only new chunk to avoid re-triggering on old buffer
@@ -67,6 +73,7 @@ export function usePty(autoResponses?: AutoResponse[], currentSection?: Section)
           }
         })
       }
+
     })
 
     window.electronAPI.onPtyExit(id, (code) => {
@@ -81,7 +88,7 @@ export function usePty(autoResponses?: AutoResponse[], currentSection?: Section)
 
     cleanupRef.current = removeData
     return id
-  }, [autoResponses])
+  }, [])
 
   const runCommand = useCallback(async (command: string, args: string[]) => {
     const label = [command, ...args].join(' ')

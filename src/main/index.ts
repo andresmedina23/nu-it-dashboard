@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain, shell, dialog, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, dialog, Menu, session } from 'electron'
 import { join } from 'path'
 import { spawn } from 'child_process'
 import * as os from 'os'
 import * as fs from 'fs'
 import * as pty from 'node-pty'
 import { autoUpdater } from 'electron-updater'
+import * as sheetsSync from './sheetsSync'
 
 // ─── Window ────────────────────────────────────────────────
 let win: BrowserWindow | null = null
@@ -382,4 +383,51 @@ ipcMain.on('shell:open', (_, url: string) => {
   if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
     shell.openExternal(url)
   }
+})
+
+// ─── Google Sheets Sync ─────────────────────────────────────
+ipcMain.handle('sheets:config:get', () => sheetsSync.getConfig())
+
+ipcMain.handle('sheets:config:set', (_event, cfg: Partial<sheetsSync.SheetsConfig>) => {
+  return sheetsSync.saveConfig(cfg)
+})
+
+ipcMain.handle('sheets:start', () => {
+  const config = sheetsSync.getConfig()
+  if (win) sheetsSync.startSync(config, win)
+  return config
+})
+
+ipcMain.on('sheets:stop', () => sheetsSync.stopSync())
+
+ipcMain.handle('sheets:update', (_event, payload: sheetsSync.UpdatePayload) => {
+  const config = sheetsSync.getConfig()
+  return sheetsSync.updateSheet(config, payload)
+})
+
+ipcMain.handle('sheets:connection:check', (_event, webAppUrl: string) => {
+  return sheetsSync.checkConnection(webAppUrl)
+})
+
+ipcMain.handle('sheets:query', async (_event, serial: string) => {
+  const config = sheetsSync.getConfig()
+  if (!config.webAppUrl) return { ok: false, error: 'no_url' }
+  try {
+    const url = `${config.webAppUrl}?serial=${encodeURIComponent(serial)}`
+    const res = await session.defaultSession.fetch(url)
+    if (!res.ok) return { ok: false, error: `http_${res.status}` }
+    return res.json()
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('sheets:signin', async () => {
+  if (!win) return
+  // Cargamos la URL del Apps Script directamente en la ventana de auth.
+  // Si no hay sesión, Google redirige al login; al terminar, redirige de vuelta
+  // y quedan las cookies de Workspace en session.defaultSession.
+  const config = sheetsSync.getConfig()
+  const targetUrl = config.webAppUrl || undefined
+  try { await sheetsSync.openGoogleSignIn(win, targetUrl) } catch { /* ventana cerrada */ }
 })

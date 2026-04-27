@@ -26,4 +26,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Shell
   openExternal: (url: string) => ipcRenderer.send('shell:open', url),
+
+  // Google Sheets Sync
+  sheetsConfigGet: () => ipcRenderer.invoke('sheets:config:get'),
+  sheetsConfigSet: (cfg: object) => ipcRenderer.invoke('sheets:config:set', cfg),
+  sheetsStart: () => ipcRenderer.invoke('sheets:start'),
+  sheetsStop: () => ipcRenderer.send('sheets:stop'),
+  sheetsUpdate: (payload: { serial: string; action: string; status?: string }) =>
+    ipcRenderer.invoke('sheets:update', payload),
+  onSheetsChange: (cb: (changes: unknown[]) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, changes: unknown[]) => cb(changes)
+    ipcRenderer.on('sheets:change', handler)
+    return () => ipcRenderer.removeListener('sheets:change', handler)
+  },
+  sheetsCheckConnection: (webAppUrl: string) => ipcRenderer.invoke('sheets:connection:check', webAppUrl),
+  sheetsSignIn: () => ipcRenderer.invoke('sheets:signin'),
+  sheetsQuery: (serial: string) => ipcRenderer.invoke('sheets:query', serial),
 })

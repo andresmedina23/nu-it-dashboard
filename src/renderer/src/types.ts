@@ -33,6 +33,15 @@ declare global {
       onPtyData: (id: string, cb: (data: string) => void) => () => void
       onPtyExit: (id: string, cb: (code: number) => void) => void
       openExternal: (url: string) => void
+      // Google Sheets Sync
+      sheetsConfigGet: () => Promise<{ webAppUrl: string; enabled: boolean; autoSync: boolean }>
+      sheetsConfigSet: (cfg: object) => Promise<{ webAppUrl: string; enabled: boolean; autoSync: boolean }>
+      sheetsStart: () => Promise<{ webAppUrl: string; enabled: boolean; autoSync: boolean }>
+      sheetsStop: () => void
+      sheetsUpdate: (payload: { serial: string; action: string; status?: string }) => Promise<{ ok: boolean; row?: number; block?: string; error?: string }>
+      onSheetsChange: (cb: (changes: unknown[]) => void) => () => void
+      sheetsCheckConnection: (webAppUrl: string) => Promise<boolean>
+      sheetsSignIn: () => Promise<void>
     }
   }
 }

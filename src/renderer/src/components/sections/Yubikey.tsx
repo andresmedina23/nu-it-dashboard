@@ -4,6 +4,9 @@ import FormField from '../FormField'
 interface Props { onRun: (cmd: string, args: string[]) => void; onScript: (s: string) => void; running: boolean }
 type Tab = 'configurar' | 'scopes_co' | 'scopes_nu'
 
+// Solo permite caracteres válidos de email — previene inyección en scripts de shell
+function safeEmail(e: string) { return e.replace(/[^a-zA-Z0-9._%+\-@]/g, '') }
+
 export default function Yubikey({ onRun, onScript, running }: Props) {
   const [tab, setTab] = useState<Tab>('configurar')
   const [email, setEmail] = useState('')
@@ -15,12 +18,13 @@ export default function Yubikey({ onRun, onScript, running }: Props) {
   ]
 
   const handleRun = () => {
+    const e = safeEmail(email)
     if (tab === 'configurar') {
-      onScript(`echo "→ Instalando brew deps..."\nbrew install yubico-piv-tool yubikey-personalization libyubikey || echo "⚠ Algunos paquetes fallaron"\necho "→ Instalando pip deps..."\npip3 install diceware pandas boto3 XlsxWriter || echo "⚠ Algunos paquetes fallaron"\nit yubikey configure "${email}" --country co`)
+      onScript(`echo "→ Instalando brew deps..."\nbrew install yubico-piv-tool yubikey-personalization libyubikey || echo "⚠ Algunos paquetes fallaron"\necho "→ Instalando pip deps..."\npip3 install diceware pandas boto3 XlsxWriter || echo "⚠ Algunos paquetes fallaron"\nit yubikey configure "${e}" --country co`)
     } else if (tab === 'scopes_co') {
-      onRun('nu-co', ['sec', 'scope', 'show', email])
+      onRun('nu-co', ['sec', 'scope', 'show', e])
     } else {
-      onRun('nu', ['sec', 'scope', 'show', email])
+      onRun('nu', ['sec', 'scope', 'show', e])
     }
   }
 
