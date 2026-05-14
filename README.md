@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  Herramienta internapara Nubank Colombia.<br/>
+  Herramienta interna para Nubank Colombia.<br/>
   Centraliza los comandos de los CLIs corporativos en una interfaz visual con terminal real integrada.
 </p>
 
