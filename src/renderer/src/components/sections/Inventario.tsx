@@ -37,15 +37,20 @@ const STATUSES = [
   { label: 'Otro (manual)',    num: ''   },
 ]
 
-/** Extrae el username del campo: acepta "sou.goku" o "sou.goku@nubank.com.br" */
+/** Extrae el username: acepta "sou.goku" o "sou.goku@nubank.com.br" — solo alfanumérico + ._- */
 function toUsername(raw: string): string {
-  return raw.trim().split('@')[0].trim()
+  return raw.trim().split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '').trim()
 }
 
-/** Normaliza el tag a formato CO-XXXX: acepta "CO-FVFKDC8C1WFV" o "FVFKDC8C1WFV" */
+/** Normaliza el tag a CO-XXXX — solo alfanumérico y guiones */
 function toTag(raw: string): string {
-  const clean = raw.trim().replace(/^CO-/i, '').trim().toUpperCase()
+  const clean = raw.trim().replace(/^CO-/i, '').replace(/[^A-Z0-9-]/gi, '').trim().toUpperCase()
   return clean ? `CO-${clean}` : ''
+}
+
+/** Sanitiza un serial externo (Google Sheets u otra fuente) — solo alfanumérico y guiones */
+function safeSerial(s: string): string {
+  return String(s ?? '').replace(/[^a-zA-Z0-9-]/g, '')
 }
 
 // ─── Sheets Sync Types ──────────────────────────────────────
@@ -117,7 +122,7 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
     const timer = setTimeout(async () => {
       setAssetStatusLoading(true)
       try {
-        const api = (window as any).electronAPI
+        const api = window.electronAPI
         const res = await api.sheetsQuery(serial)
         setAssetStatus(res.ok ? { disponible: res.disponible, fecha: res.fecha } : null)
       } catch {
@@ -163,7 +168,7 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
   const checkConnection = useCallback(async (url: string) => {
     if (!url) { setConnOk(null); return }
     setChecking(true)
-    const api = (window as any).electronAPI
+    const api = window.electronAPI
     const ok = await api.sheetsCheckConnection(url)
     setConnOk(ok)
     setChecking(false)
@@ -172,7 +177,7 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
   const handleSignIn = useCallback(async () => {
     setSigningIn(true)
     try {
-      await (window as any).electronAPI.sheetsSignIn()
+      await window.electronAPI.sheetsSignIn()
       // La ventana se cerró → el usuario completó (o canceló) el login.
       // Marcar sesión como activa — las cookies quedaron en session.defaultSession.
       setGoogleOk(true)
@@ -185,7 +190,7 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
 
   // Load config on mount
   useEffect(() => {
-    const api = (window as any).electronAPI
+    const api = window.electronAPI
     api.sheetsConfigGet().then((cfg: SheetsConfig) => {
       setSheetsCfg(cfg)
       setUrlDraft(cfg.webAppUrl)
@@ -206,7 +211,7 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
 
   // Subscribe to sheet changes from main process
   useEffect(() => {
-    const api = (window as any).electronAPI
+    const api = window.electronAPI
     const unsub = api.onSheetsChange((changes: SheetChange[]) => {
       setLastSyncAt(new Date())
       setSyncStatus('connected')
@@ -225,7 +230,7 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
         return
       }
 
-      const serialTag = `CO-${dispChange.serial}`
+      const serialTag = `CO-${safeSerial(dispChange.serial)}`
       const mapped = SHEET_STATUS_MAP[dispChange.newValue.toLowerCase().trim()]
       if (!mapped) return  // valor desconocido → ignorar
 
@@ -247,11 +252,11 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
         ])
         lastRunRef.current = { serial: dispChange.serial, action: 'checkin' }
         onScript(
-          `echo "→ Checkin ${serialTag}"\n` +
-          `it inventory asset checkin "${serialTag}" --country co\n` +
-          `echo "→ Actualizando a ${dispChange.newValue}..."\n` +
-          `it inventory asset updatestatus "${serialTag}" --country co\n` +
-          `echo "✓ Completado"`
+          `echo '→ Checkin ${serialTag}'\n` +
+          `it inventory asset checkin '${serialTag}' --country co\n` +
+          `echo '→ Actualizando...'\n` +
+          `it inventory asset updatestatus '${serialTag}' --country co\n` +
+          `echo '✓ Completado'`
         )
       } else {
         // Otros estados → solo updatestatus
@@ -275,7 +280,7 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
     if (prevRunning.current && !running) {
       const run = lastRunRef.current
       if (run && sheetsCfg?.enabled && sheetsCfg.webAppUrl && run.serial) {
-        const api = (window as any).electronAPI
+        const api = window.electronAPI
         api.sheetsUpdate({ serial: run.serial, action: run.action, status: run.status })
           .then((result: { ok: boolean; block?: string }) => {
             const label = result.block ? `bloque ${result.block}` : ''
@@ -301,7 +306,7 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
   }, [running, sheetsCfg])
 
   const handleToggleSync = useCallback(async (enabled: boolean) => {
-    const api = (window as any).electronAPI
+    const api = window.electronAPI
     // Solo guardar el campo enabled — no sobrescribir la URL guardada con el draft
     const updated = await api.sheetsConfigSet({ enabled })
     setSheetsCfg(updated)
@@ -320,7 +325,7 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
   }, [])
 
   const handleSaveCfg = useCallback(async () => {
-    const api = (window as any).electronAPI
+    const api = window.electronAPI
     const updated = await api.sheetsConfigSet({ webAppUrl: urlDraft })
     setSheetsCfg(updated)
     if (urlDraft) checkConnection(urlDraft)
@@ -599,7 +604,7 @@ echo "✓ Flujo completado"`
                 </div>
                 <div
                   onClick={async () => {
-                    const updated = await (window as any).electronAPI.sheetsConfigSet({ autoSync: !sheetsCfg.autoSync })
+                    const updated = await window.electronAPI.sheetsConfigSet({ autoSync: !sheetsCfg.autoSync })
                     setSheetsCfg(updated)
                   }}
                   className={`ml-3 w-9 h-5 rounded-full transition-all cursor-pointer relative flex-shrink-0

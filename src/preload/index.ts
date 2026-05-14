@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Shell
   openExternal: (url: string) => ipcRenderer.send('shell:open', url),
 
+
   // Google Sheets Sync
   sheetsConfigGet: () => ipcRenderer.invoke('sheets:config:get'),
   sheetsConfigSet: (cfg: object) => ipcRenderer.invoke('sheets:config:set', cfg),

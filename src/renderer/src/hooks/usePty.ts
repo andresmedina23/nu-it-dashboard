@@ -78,11 +78,11 @@ export function usePty(autoResponses?: AutoResponse[], currentSection?: Section)
 
     window.electronAPI.onPtyExit(id, (code) => {
       setRunning(false)
-      // Exit code 1 from `it inventory` often means success — normalize
       setExitCode(code)
+      const finalOutput = outputBufRef.current
       removeData()
       setHistory(prev => prev.map(e =>
-        e.id === entryId ? { ...e, endedAt: new Date(), exitCode: code } : e
+        e.id === entryId ? { ...e, endedAt: new Date(), exitCode: code, output: finalOutput } : e
       ))
     })
 

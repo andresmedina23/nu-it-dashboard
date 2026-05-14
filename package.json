@@ -63,9 +63,9 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "andresmedina23",
+      "owner": "nubank",
       "repo": "nu-it-dashboard",
-      "publishAutoUpdate": true
+      "publishAutoUpdate": false
     }
   }
 }

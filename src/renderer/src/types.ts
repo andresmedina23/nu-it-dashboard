@@ -7,6 +7,7 @@ export interface CommandEntry {
   startedAt: Date
   endedAt?: Date
   exitCode?: number | null
+  output?: string
 }
 
 export interface CredStatus {

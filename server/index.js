@@ -3,12 +3,53 @@ const cors = require('cors')
 const { spawn } = require('child_process')
 const path = require('path')
 const os = require('os')
+const crypto = require('crypto')
 
 const app = express()
 const PORT = 3001
 
-app.use(cors())
+// Token de sesión generado en arranque — solo válido mientras el proceso vive
+const SESSION_TOKEN = crypto.randomBytes(32).toString('hex')
+
+// Solo acepta orígenes locales (Electron renderer / localhost dev)
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || /^(https?:\/\/localhost(:\d+)?|file:\/\/)/.test(origin)) {
+      cb(null, true)
+    } else {
+      cb(new Error('CORS bloqueado'))
+    }
+  }
+}))
 app.use(express.json())
+
+// ─── Middleware de autenticación por token de sesión ────────────────────
+app.use((req, res, next) => {
+  // Health check no requiere auth
+  if (req.path === '/api/health') return next()
+  const token = req.headers['x-session-token'] || req.query['token']
+  if (token !== SESSION_TOKEN) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+  next()
+})
+
+// Exponer el token al proceso padre (Electron lo lee de stdout al arrancar)
+console.log(`SESSION_TOKEN=${SESSION_TOKEN}`)
+
+// ─── Shell escaping: envuelve en comillas simples y escapa ' internos ───
+function shellEscape(val) {
+  return "'" + String(val ?? '').replace(/'/g, "'\\''") + "'"
+}
+
+// ─── Validadores básicos de parámetros ──────────────────────────────────
+function safeEmail(e) { return String(e ?? '').replace(/[^a-zA-Z0-9._%+\-@]/g, '') }
+function safeSerial(s) { return String(s ?? '').replace(/[^a-zA-Z0-9\-]/g, '') }
+function safeTag(t) { return String(t ?? '').replace(/[^a-zA-Z0-9\-]/g, '') }
+function safeTime(t) { return String(t ?? '60').replace(/[^0-9]/g, '') || '60' }
+function safeVlan(v) { return String(v ?? '').replace(/[^0-9]/g, '') }
+function safeMotivo(m) { return String(m ?? '').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ .,_\-]/g, '').slice(0, 120) }
 
 // ============================================================
 // COMMAND DEFINITIONS — maps each action to shell args
@@ -74,59 +115,59 @@ const COMMANDS = {
       'echo "✓ Actualización completada"',
     ]
   }),
-  'nucli.toolio': ({ nombre }) => ({ cmd: 'nu-co', args: ['toolio', 'add', nombre] }),
+  'nucli.toolio': ({ nombre }) => ({ cmd: 'nu-co', args: ['toolio', 'add', safeEmail(nombre)] }),
 
   // JAMF
   'jamf.recovery_key': ({ serial, motivo }) => ({
-    cmd: 'it', args: ['jamf', 'computer', 'get', 'recovery-key', serial, motivo || 'Soporte Técnico']
+    cmd: 'it', args: ['jamf', 'computer', 'get', 'recovery-key', safeSerial(serial), safeMotivo(motivo) || 'Soporte Técnico']
   }),
   'jamf.ztd_enroll': ({ serial, motivo }) => ({
-    cmd: 'it', args: ['jamf', 'computer', 'update', 'prestage-enrollment', 'ztd', serial, motivo || 'Testing CO ZTD']
+    cmd: 'it', args: ['jamf', 'computer', 'update', 'prestage-enrollment', 'ztd', safeSerial(serial), safeMotivo(motivo) || 'Testing CO ZTD']
   }),
   'jamf.ztd_remove': ({ serial }) => ({
-    cmd: 'it', args: ['jamf', 'computer', 'update', 'prestage-enrollment', 'nubank', serial, 'failure']
+    cmd: 'it', args: ['jamf', 'computer', 'update', 'prestage-enrollment', 'nubank', safeSerial(serial), 'failure']
   }),
   'jamf.send_cert': ({ username }) => ({
-    cmd: 'it', args: ['send', 'cert', 'ztd', username]
+    cmd: 'it', args: ['send', 'cert', 'ztd', safeEmail(username)]
   }),
   'jamf.admin_temp': ({ serial, tiempo }) => ({
-    cmd: 'it', args: ['jamf', 'group', 'add', serial, '--localadmin', '--time', tiempo || '60']
+    cmd: 'it', args: ['jamf', 'group', 'add', safeSerial(serial), '--localadmin', '--time', safeTime(tiempo)]
   }),
   'jamf.unlock': ({ serial, username, motivo }) => ({
-    cmd: 'it', args: ['jamf', 'computer', 'unlock', serial, username, motivo || 'unlock']
+    cmd: 'it', args: ['jamf', 'computer', 'unlock', safeSerial(serial), safeEmail(username), safeMotivo(motivo) || 'unlock']
   }),
 
   // CERTIFICADOS
   'certs.nubanker_nu': ({ email }) => ({
-    cmd: 'nu', args: ['certs', 'gen', 'nubanker', 'prod', email]
+    cmd: 'nu', args: ['certs', 'gen', 'nubanker', 'prod', safeEmail(email)]
   }),
   'certs.network_nu': ({ email, vlan }) => ({
-    cmd: 'nu', args: ['certs', 'gen', 'network', 'prod', email, vlan]
+    cmd: 'nu', args: ['certs', 'gen', 'network', 'prod', safeEmail(email), safeVlan(vlan)]
   }),
   'certs.nubanker_link': ({ email }) => ({
     script: true,
     lines: [
-      `nu-ist certs gen nubanker prod "${email}" --overwrite`,
-      `nu-ist certs gen-link nubanker "${email}"`,
+      `nu-ist certs gen nubanker prod ${shellEscape(safeEmail(email))} --overwrite`,
+      `nu-ist certs gen-link nubanker ${shellEscape(safeEmail(email))}`,
     ]
   }),
   'certs.network_link': ({ email, vlan }) => ({
     script: true,
     lines: [
-      `nu-ist certs gen network prod "${email}" "${vlan}"`,
-      `nu-ist certs gen-link network "${email}"`,
+      `nu-ist certs gen network prod ${shellEscape(safeEmail(email))} ${shellEscape(safeVlan(vlan))}`,
+      `nu-ist certs gen-link network ${shellEscape(safeEmail(email))}`,
     ]
   }),
   'certs.flujo_completo': ({ email, vlan }) => ({
     script: true,
     lines: [
-      `echo "→ Paso 1: Certificado Nubanker"`,
-      `nu-ist certs gen nubanker prod "${email}" --overwrite`,
-      `nu-ist certs gen-link nubanker "${email}"`,
-      `echo "→ Paso 2: Certificado Red"`,
-      `nu-ist certs gen network prod "${email}" "${vlan}"`,
-      `nu-ist certs gen-link network "${email}"`,
-      `echo "✓ Flujo completado"`,
+      `echo '→ Paso 1: Certificado Nubanker'`,
+      `nu-ist certs gen nubanker prod ${shellEscape(safeEmail(email))} --overwrite`,
+      `nu-ist certs gen-link nubanker ${shellEscape(safeEmail(email))}`,
+      `echo '→ Paso 2: Certificado Red'`,
+      `nu-ist certs gen network prod ${shellEscape(safeEmail(email))} ${shellEscape(safeVlan(vlan))}`,
+      `nu-ist certs gen-link network ${shellEscape(safeEmail(email))}`,
+      `echo '✓ Flujo completado'`,
     ]
   }),
 
@@ -134,46 +175,63 @@ const COMMANDS = {
   'yubikey.configurar': ({ email }) => ({
     script: true,
     lines: [
-      'echo "→ Instalando dependencias brew..."',
-      'brew install yubico-piv-tool yubikey-personalization libyubikey || echo "⚠ Algunos paquetes fallaron"',
-      'echo "→ Instalando dependencias pip..."',
-      'pip3 install diceware pandas boto3 XlsxWriter || echo "⚠ Algunos paquetes fallaron"',
-      `it yubikey configure "${email}" --country co`,
+      `echo '→ Instalando dependencias brew...'`,
+      `brew install yubico-piv-tool yubikey-personalization libyubikey || echo '⚠ Algunos paquetes fallaron'`,
+      `echo '→ Instalando dependencias pip...'`,
+      `pip3 install diceware pandas boto3 XlsxWriter || echo '⚠ Algunos paquetes fallaron'`,
+      `it yubikey configure ${shellEscape(safeEmail(email))} --country co`,
     ]
   }),
-  'yubikey.scopes_co': ({ email }) => ({ cmd: 'nu-co', args: ['sec', 'scope', 'show', email] }),
-  'yubikey.scopes_nu': ({ email }) => ({ cmd: 'nu', args: ['sec', 'scope', 'show', email] }),
+  'yubikey.scopes_co': ({ email }) => ({ cmd: 'nu-co', args: ['sec', 'scope', 'show', safeEmail(email)] }),
+  'yubikey.scopes_nu': ({ email }) => ({ cmd: 'nu', args: ['sec', 'scope', 'show', safeEmail(email)] }),
 
   // INVENTARIO
   'inv.checkout': ({ email, tag }) => ({
-    cmd: 'it', args: ['inventory', 'asset', 'checkout', email, `CO-${tag}`]
+    cmd: 'it', args: ['inventory', 'asset', 'checkout', safeEmail(email), `CO-${safeTag(tag)}`]
   }),
   'inv.checkin': ({ tag }) => ({
-    cmd: 'it', args: ['inventory', 'asset', 'checkin', `CO-${tag}`]
+    cmd: 'it', args: ['inventory', 'asset', 'checkin', `CO-${safeTag(tag)}`]
   }),
-  'inv.checkin_update': ({ tag }) => ({
-    script: true,
-    lines: [
-      `echo "→ Paso 1: Checkin"`,
-      `it inventory asset checkin "CO-${tag}"`,
-      `echo "→ Paso 2: Update Status"`,
-      `it inventory asset updatestatus "CO-${tag}"`,
-      `echo "✓ Flujo completado"`,
-    ]
-  }),
+  'inv.checkin_update': ({ tag }) => {
+    const t = safeTag(tag)
+    return {
+      script: true,
+      lines: [
+        `echo '→ Paso 1: Checkin'`,
+        `it inventory asset checkin ${shellEscape('CO-' + t)}`,
+        `echo '→ Paso 2: Update Status'`,
+        `it inventory asset updatestatus ${shellEscape('CO-' + t)}`,
+        `echo '✓ Flujo completado'`,
+      ]
+    }
+  },
   'inv.update_status': ({ tag }) => ({
-    cmd: 'it', args: ['inventory', 'asset', 'updatestatus', `CO-${tag}`]
+    cmd: 'it', args: ['inventory', 'asset', 'updatestatus', `CO-${safeTag(tag)}`]
   }),
   'inv.update_multiple': ({ tags }) => ({
     script: true,
-    lines: tags.map(tag => [
-      `echo "→ Procesando CO-${tag}..."`,
-      `it inventory asset updatestatus "CO-${tag}" --country co`,
-    ]).flat().concat(['echo "✓ Proceso completado"'])
+    lines: (Array.isArray(tags) ? tags : []).map(tag => {
+      const t = safeTag(tag)
+      return [
+        `echo ${shellEscape('→ Procesando CO-' + t + '...')}`,
+        `it inventory asset updatestatus ${shellEscape('CO-' + t)} --country co`,
+      ]
+    }).flat().concat([`echo '✓ Proceso completado'`])
   }),
   'inv.crear_usuario': ({ email, country }) => ({
-    cmd: 'it', args: ['inventory', 'user', 'create', email, '--country', country || 'co']
+    cmd: 'it', args: ['inventory', 'user', 'create', safeEmail(email), '--country', country || 'co']
   }),
+}
+
+// ─── Rate limiter simple — máx 5 peticiones cada 10 segundos ───
+const rlCounts = new Map()
+function rateLimited(key) {
+  const now = Date.now()
+  const entry = rlCounts.get(key) || { count: 0, reset: now + 10_000 }
+  if (now > entry.reset) { entry.count = 0; entry.reset = now + 10_000 }
+  entry.count++
+  rlCounts.set(key, entry)
+  return entry.count > 5
 }
 
 // ============================================================
@@ -181,11 +239,22 @@ const COMMANDS = {
 // ============================================================
 
 app.get('/sse/run', (req, res) => {
+  if (rateLimited(req.ip)) {
+    res.status(429).json({ error: 'Too many requests — espera 10 segundos' })
+    return
+  }
   const { action, params: rawParams } = req.query
   let params = {}
-  try { params = JSON.parse(rawParams || '{}') } catch (_) {}
+  try {
+    const parsed = JSON.parse(rawParams || '{}')
+    // Prevenir prototype pollution — filtrar keys peligrosas
+    const BLOCKED = new Set(['__proto__', 'constructor', 'prototype'])
+    params = Object.fromEntries(
+      Object.entries(parsed).filter(([k]) => !BLOCKED.has(k))
+    )
+  } catch (_) {}
 
-  if (!COMMANDS[action]) {
+  if (!Object.prototype.hasOwnProperty.call(COMMANDS, action)) {
     res.status(400).json({ error: `Unknown action: ${action}` })
     return
   }
@@ -201,7 +270,8 @@ app.get('/sse/run', (req, res) => {
     res.write(`data: ${JSON.stringify({ type, data })}\n\n`)
   }
 
-  const def = COMMANDS[action](params)
+  const def = Object.prototype.hasOwnProperty.call(COMMANDS, action) ? COMMANDS[action](params) : null
+  if (!def) { res.status(400).json({ error: 'Invalid action' }); return }
   const shell = process.env.SHELL || '/bin/zsh'
   const nurcPath = path.join(os.homedir(), '.nurc')
 
@@ -215,9 +285,8 @@ app.get('/sse/run', (req, res) => {
     ].join('\n')
     shellArgs = ['-c', shellScript]
   } else {
-    // Single command — source .nurc first
-    const cmdStr = [def.cmd, ...def.args.map(a => `"${a.replace(/"/g, '\\"')}"`)]
-      .join(' ')
+    // Single command — args sanitized; use single-quote escaping
+    const cmdStr = [def.cmd, ...def.args.map(a => shellEscape(a))].join(' ')
     shellScript = `source "${nurcPath}" 2>/dev/null || true\n${cmdStr}`
     shellArgs = ['-c', shellScript]
   }
@@ -248,6 +317,6 @@ app.get('/sse/run', (req, res) => {
 // Health check
 app.get('/api/health', (_, res) => res.json({ status: 'ok' }))
 
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`\n  IT Dashboard Backend — http://localhost:${PORT}\n`)
 })

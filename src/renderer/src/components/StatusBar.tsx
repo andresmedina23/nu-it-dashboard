@@ -22,8 +22,10 @@ const STATUS_COLOR = {
 function StatusPill({ label, data }: { label: string; data: CredStatus }) {
   const c = STATUS_COLOR[data.status]
   return (
-    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[11px] font-medium ${c.pill} ${c.glow}`}
-         title={data.expires ? `Expira: ${new Date(data.expires).toLocaleString('es-CO')}` : label}>
+    <div
+      className={`status-pill flex items-center gap-1.5 px-2 py-1 rounded-full border text-[11px] font-medium ${c.pill} ${c.glow}`}
+      title={data.expires ? `Expira: ${new Date(data.expires).toLocaleString('es-CO')}` : label}
+    >
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot} ${data.status === 'ok' ? 'animate-pulse' : ''}`} />
       <span className="font-semibold">{label}:</span>
       <span>{timeLeft(data.expires)}</span>
@@ -31,7 +33,6 @@ function StatusPill({ label, data }: { label: string; data: CredStatus }) {
   )
 }
 
-// Groups for display
 const AWS_PROFILES = [
   { key: 'aws:default', label: 'AWS' },
 ]
@@ -41,7 +42,7 @@ const NU_TOKENS = [
   { key: 'nu:br/prod',  label: 'nu' },
 ]
 
-export default function StatusBar() {
+export default function StatusBar({ refreshKey = 0 }: { refreshKey?: number }) {
   const [creds, setCreds] = useState<Record<string, CredStatus>>({})
   const [loading, setLoading] = useState(true)
 
@@ -59,6 +60,12 @@ export default function StatusBar() {
     const t = setInterval(refresh, 60_000)
     return () => clearInterval(t)
   }, [])
+
+  // Auto-refrescar cuando termina un comando PTY
+  useEffect(() => {
+    if (refreshKey > 0) refresh()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   const missing: CredStatus = { expires: '', status: 'missing' }
   const anyExpired = [...AWS_PROFILES, ...NU_TOKENS].some(p => creds[p.key]?.status === 'expired')
@@ -82,14 +89,12 @@ export default function StatusBar() {
           <span className="text-[11px] text-[#C9B3D9]/30 animate-pulse">Verificando tokens...</span>
         ) : (
           <>
-            {/* Global alert */}
             {anyExpired && (
-              <span className="text-[11px] text-[#E04045] font-semibold bg-[#E04045]/10 border border-[#E04045]/30 px-2 py-1 rounded-full mr-1">
+              <span className="alert-pulse text-[11px] text-[#E04045] font-semibold bg-[#E04045]/10 border border-[#E04045]/30 px-2 py-1 rounded-full mr-1">
                 ⚠ Tokens vencidos — renueva en Nucli/AWS
               </span>
             )}
 
-            {/* Separator label */}
             <span className="text-[10px] text-[#4A1D7A]/60 hidden lg:inline">AWS:</span>
             {AWS_PROFILES.map(p => (
               <StatusPill key={p.key} label={p.label} data={creds[p.key] ?? missing} />
@@ -102,8 +107,12 @@ export default function StatusBar() {
               <StatusPill key={p.key} label={p.label} data={creds[p.key] ?? missing} />
             ))}
 
-            <button onClick={refresh} title="Actualizar" className="no-drag ml-1 text-[#C9B3D9]/30 hover:text-[#C9B3D9] transition-colors p-1 rounded text-base leading-none">
-              ↻
+            <button
+              onClick={refresh}
+              title="Actualizar credenciales"
+              className="no-drag ml-1 text-[#C9B3D9]/30 hover:text-[#820AD1] transition-colors p-1 rounded text-base leading-none"
+            >
+              <span className={loading ? 'spinning' : ''}>↻</span>
             </button>
           </>
         )}

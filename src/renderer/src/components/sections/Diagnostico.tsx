@@ -51,7 +51,7 @@ echo "=== Instalando Homebrew ==="
 echo ""
 echo "⚠ Se pedirá tu contraseña de Mac (es normal)."
 echo ""
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/88ad1d840fd5b248d578e71900ef80d39f137c21/install.sh)"
 echo ""
 echo "→ Configurando PATH para Apple Silicon..."
 echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile

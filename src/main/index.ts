@@ -27,6 +27,22 @@ function createWindow() {
     },
   })
 
+  // Bloquea permisos no necesarios (micrófono, cámara, notificaciones, etc.)
+  win.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
+    const ALLOWED_PERMISSIONS = new Set(['clipboard-read', 'clipboard-sanitized-write'])
+    callback(ALLOWED_PERMISSIONS.has(permission))
+  })
+
+  // Bloquea navegación fuera del renderer local
+  win.webContents.on('will-navigate', (event, url) => {
+    const allowed = process.env['ELECTRON_RENDERER_URL'] ?? `file://${join(__dirname, '../renderer/')}`
+    if (!url.startsWith(allowed)) {
+      event.preventDefault()
+    }
+  })
+
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
   if (process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -38,7 +54,7 @@ function createWindow() {
 let isManualUpdateCheck = false
 let updateReadyToInstall = false
 
-autoUpdater.autoDownload = true
+autoUpdater.autoDownload = false  // requiere confirmación del usuario antes de descargar
 autoUpdater.autoInstallOnAppQuit = true
 autoUpdater.logger = null // evitar logs que confunden
 
@@ -74,7 +90,7 @@ autoUpdater.on('update-downloaded', (info) => {
         app.exit(0)
       }, 500)
     } else if (response === 1) {
-      shell.openExternal('https://github.com/andresmedina23/nu-it-dashboard/releases/latest')
+      shell.openExternal('https://github.com/nubank/nu-it-dashboard/releases/latest')
     }
   })
 })
@@ -103,7 +119,7 @@ autoUpdater.on('error', (err) => {
       detail: `Descarga la última versión manualmente desde GitHub.\n\nDetalle: ${err?.message ?? String(err)}`,
       buttons: ['Abrir GitHub', 'Cerrar'],
     }).then(({ response: btn }) => {
-      if (btn === 0) shell.openExternal('https://github.com/andresmedina23/nu-it-dashboard/releases/latest')
+      if (btn === 0) shell.openExternal('https://github.com/nubank/nu-it-dashboard/releases/latest')
     })
   }
 })
@@ -179,7 +195,36 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+// ─── Servidor Express embebido (server/index.js) ─────────────
+let serverToken: string | null = null
+let serverProc: ReturnType<typeof spawn> | null = null
+
+function startEmbeddedServer() {
+  const serverPath = join(__dirname, '../../server/index.js')
+  if (!fs.existsSync(serverPath)) return
+
+  serverProc = spawn(process.execPath, [serverPath], {
+    env: { ...process.env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  serverProc.stdout?.on('data', (chunk: Buffer) => {
+    const line = chunk.toString()
+    const match = line.match(/^SESSION_TOKEN=([a-f0-9]+)/)
+    if (match) {
+      serverToken = match[1]
+    }
+  })
+
+  serverProc.on('exit', (code) => {
+    console.log(`[server] proceso terminó con código ${code}`)
+    serverProc = null
+    serverToken = null
+  })
+}
+
 app.whenReady().then(() => {
+  startEmbeddedServer()
   createWindow()
   buildMenu()
 
@@ -194,6 +239,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  serverProc?.kill()
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -232,13 +278,22 @@ function buildPtyEnv() {
   return { ...process.env, PATH: merged, TERM: 'xterm-256color', FORCE_COLOR: '1' }
 }
 
-// Busca el archivo ~/.nurc o alternativas comunes
+// Busca el archivo ~/.nurc — valida que esté dentro del home y sin caracteres especiales
 function findNurc(): string {
+  const home = os.homedir()
   const candidates = [
-    join(os.homedir(), '.nurc'),
-    join(os.homedir(), '.nurc.backup'),
+    join(home, '.nurc'),
+    join(home, '.nurc.backup'),
   ]
-  return candidates.find(p => { try { fs.accessSync(p); return true } catch { return false } }) ?? candidates[0]
+  const found = candidates.find(p => {
+    try { fs.accessSync(p); return true } catch { return false }
+  }) ?? candidates[0]
+
+  // Seguridad: asegura que el path esté dentro del home y no tenga chars problemáticos en shell
+  if (!found.startsWith(home) || /[`$\\!;|&<>]/.test(found)) {
+    return join(home, '.nurc')  // fallback seguro
+  }
+  return found
 }
 
 // ─── Credential Status ──────────────────────────────────────
@@ -332,11 +387,17 @@ async function discoverCommands(): Promise<Record<string, string[]>> {
   return { it: parseTree(itOut), nu: parseTree(nuOut) }
 }
 
+// ─── Allowlist de comandos permitidos ──────────────────────
+const ALLOWED_COMMANDS = /^(it|nu|nu-ist|nu-co|jamf|security|networksetup|system_profiler|diskutil|softwareupdate|defaults|scutil|sw_vers|uname|whoami|id|hostname|uptime|df|du|top|ps|netstat|ping|traceroute|nslookup|dig|curl|brew|pip3?|python3?|node|npm|git|ssh|openssl|certutil|security)$/
+
 // ─── IPC Handlers ──────────────────────────────────────────
 ipcMain.handle('creds:status', () => parseCredentialStatus())
 ipcMain.handle('cli:discover', () => discoverCommands())
 
 ipcMain.handle('pty:start', (_event, { id, command, args }: { id: string; command: string; args: string[] }) => {
+  const baseCmd = command.split('/').pop() ?? command
+  if (!ALLOWED_COMMANDS.test(baseCmd)) return false
+
   const existing = ptyMap.get(id)
   if (existing) { try { existing.kill() } catch (_) {} ; ptyMap.delete(id) }
 
@@ -354,7 +415,29 @@ ipcMain.handle('pty:start', (_event, { id, command, args }: { id: string; comman
   return true
 })
 
+// Valida que cada segmento de comando (separado por &&, ||, ;, |) use comandos permitidos
+function isScriptSafe(script: string): boolean {
+  const SKIP = /^(echo|source|printf|export|:|true|false|for|if|fi|then|else|elif|do|done|while|case|esac|read)(\s|$)/
+  const lines = script.split('\n')
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line || line.startsWith('#')) continue
+    // Dividir por operadores de control para validar cada segmento individualmente
+    const segments = line.split(/&&|\|\||;|\|/)
+    for (const seg of segments) {
+      const token = seg.trim()
+      if (!token || SKIP.test(token)) continue
+      const baseCmd = token.split(/\s+/)[0].split('/').pop() ?? ''
+      if (!ALLOWED_COMMANDS.test(baseCmd)) return false
+    }
+  }
+  return true
+}
+
 ipcMain.handle('pty:script', (_event, { id, script }: { id: string; script: string }) => {
+  if (typeof script !== 'string' || script.length > 32_000) return false
+  if (!isScriptSafe(script)) return false
+
   const existing = ptyMap.get(id)
   if (existing) { try { existing.kill() } catch (_) {} ; ptyMap.delete(id) }
 
@@ -371,16 +454,22 @@ ipcMain.handle('pty:script', (_event, { id, script }: { id: string; script: stri
   return true
 })
 
-ipcMain.on('pty:input', (_, { id, data }: { id: string; data: string }) => { ptyMap.get(id)?.write(data) })
+ipcMain.on('pty:input', (_, { id, data }: { id: string; data: string }) => {
+  if (typeof data !== 'string' || data.length > 4096) return
+  ptyMap.get(id)?.write(data)
+})
 ipcMain.on('pty:kill', (_, id: string) => {
   const term = ptyMap.get(id)
   if (term) { try { term.kill() } catch (_) {} ; ptyMap.delete(id) }
 })
 ipcMain.on('pty:resize', (_, { id, cols, rows }: { id: string; cols: number; rows: number }) => {
+  if (typeof cols !== 'number' || typeof rows !== 'number') return
+  if (cols < 10 || cols > 500 || rows < 5 || rows > 300) return
   ptyMap.get(id)?.resize(cols, rows)
 })
+const ALLOWED_EXTERNAL = /^https:\/\/(github\.com|nubank\.com)\//
 ipcMain.on('shell:open', (_, url: string) => {
-  if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+  if (typeof url === 'string' && ALLOWED_EXTERNAL.test(url)) {
     shell.openExternal(url)
   }
 })
@@ -411,7 +500,7 @@ ipcMain.handle('sheets:connection:check', (_event, webAppUrl: string) => {
 
 ipcMain.handle('sheets:query', async (_event, serial: string) => {
   const config = sheetsSync.getConfig()
-  if (!config.webAppUrl) return { ok: false, error: 'no_url' }
+  if (!config.webAppUrl || !sheetsSync.isValidGoogleScriptUrl(config.webAppUrl)) return { ok: false, error: 'invalid_url' }
   try {
     const url = `${config.webAppUrl}?serial=${encodeURIComponent(serial)}`
     const res = await session.defaultSession.fetch(url)

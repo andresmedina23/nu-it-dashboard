@@ -5,6 +5,7 @@ interface Props {
   running: boolean
   exitCode: number | null
   onInput: (data: string) => void
+  onKill: () => void
   onClear: () => void
 }
 
@@ -16,15 +17,12 @@ function stripAnsi(str: string): string {
             .replace(/\x1b[=>]/g, '')
 }
 
-// Simula el comportamiento de un terminal real con \r:
-// Primero normaliza \r\n (PTY/Windows) → \n para no perder texto normal.
-// Luego maneja \r sueltos (spinners que sobreescriben la línea).
+// Simula el comportamiento de un terminal real con \r
 function processCarriageReturns(text: string): string {
   const normalized = text.replace(/\r\n/g, '\n')
   return normalized.split('\n').map(line => {
     if (!line.includes('\r')) return line
     const parts = line.split('\r')
-    // Toma el último segmento no vacío (el texto visible más reciente)
     for (let i = parts.length - 1; i >= 0; i--) {
       if (parts[i]) return parts[i]
     }
@@ -33,7 +31,7 @@ function processCarriageReturns(text: string): string {
 }
 
 // Colorize known patterns
-function colorizeOutput(text: string): JSX.Element[] {
+function colorizeOutput(text: string, newFrom: number): JSX.Element[] {
   const lines = processCarriageReturns(text).split('\n')
   return lines.map((line, i) => {
     const plain = stripAnsi(line)
@@ -45,20 +43,37 @@ function colorizeOutput(text: string): JSX.Element[] {
     else if (plain.match(/→|paso|info|actualizando/i)) cls = 'text-[#3B9EFF]'
     else if (plain.match(/\[y\/n\]|\(y\/n\)|confirm/i)) cls = 'text-[#F6AE2D] font-semibold animate-pulse'
 
+    const isNew = i >= newFrom
     return (
-      <div key={i} className={`terminal-out leading-relaxed selectable ${cls}`}>
+      <div
+        key={i}
+        className={`terminal-out leading-relaxed selectable ${cls} ${isNew ? 'line-in' : ''}`}
+      >
         {plain || '\u00A0'}
       </div>
     )
   })
 }
 
-export default function Terminal({ output, running, exitCode, onInput, onClear }: Props) {
+export default function Terminal({ output, running, exitCode, onInput, onKill, onClear }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [inputVal, setInputVal] = useState('')
+  const prevLineCountRef = useRef(0)
 
-  // Check if last line is a prompt (y/n, password, etc.)
+  const lines = processCarriageReturns(output).split('\n')
+  const newFrom = prevLineCountRef.current
+
+  // Update line count ref after each render (after output changes)
+  useEffect(() => {
+    prevLineCountRef.current = lines.length
+  })
+
+  // Reset line counter when a new session starts
+  useEffect(() => {
+    if (running) prevLineCountRef.current = 0
+  }, [running])
+
   const lastLines = processCarriageReturns(output).split('\n').filter(l => l.trim()).slice(-3).join(' ').toLowerCase()
   const isPrompting = running && lastLines.match(/\[y\/n\]|\(y\/n\)|password:|confirm|continuar|proceed/)
 
@@ -67,9 +82,7 @@ export default function Terminal({ output, running, exitCode, onInput, onClear }
   }, [output])
 
   useEffect(() => {
-    if (isPrompting) {
-      inputRef.current?.focus()
-    }
+    if (isPrompting) inputRef.current?.focus()
   }, [isPrompting])
 
   const sendInput = useCallback((val: string) => {
@@ -78,18 +91,11 @@ export default function Terminal({ output, running, exitCode, onInput, onClear }
   }, [onInput])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      sendInput(inputVal)
-    }
-    // Allow Ctrl+C
-    if (e.key === 'c' && e.ctrlKey) {
-      onInput('\x03')
-    }
+    if (e.key === 'Enter') sendInput(inputVal)
+    if (e.key === 'c' && e.ctrlKey) onInput('\x03')
   }
 
-  const quickSend = (val: string) => {
-    onInput(val + '\n')
-  }
+  const quickSend = (val: string) => onInput(val + '\n')
 
   return (
     <div className="flex flex-col h-full rounded-xl overflow-hidden border border-[#4A1D7A]/60">
@@ -101,7 +107,7 @@ export default function Terminal({ output, running, exitCode, onInput, onClear }
           <span className="w-3 h-3 rounded-full bg-[#0DBA6A]" />
           <span className="ml-2 text-[11px] text-[#C9B3D9]/40 font-mono">— IT Dashboard Terminal —</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {running && (
             <span className="flex items-center gap-1.5 text-[11px] text-[#F6AE2D]">
               <span className="w-1.5 h-1.5 rounded-full bg-[#F6AE2D] animate-ping" />
@@ -112,6 +118,15 @@ export default function Terminal({ output, running, exitCode, onInput, onClear }
             <span className={`text-[11px] font-mono ${exitCode === 0 ? 'text-[#0DBA6A]' : 'text-[#E04045]'}`}>
               exit {exitCode}
             </span>
+          )}
+          {running && (
+            <button
+              onClick={onKill}
+              title="Terminar proceso (Ctrl+C)"
+              className="text-[11px] text-[#E04045]/60 hover:text-[#E04045] hover:bg-[#E04045]/10 transition-all px-2 py-0.5 rounded border border-[#E04045]/20 hover:border-[#E04045]/50"
+            >
+              ✕ kill
+            </button>
           )}
           <button
             onClick={onClear}
@@ -126,7 +141,7 @@ export default function Terminal({ output, running, exitCode, onInput, onClear }
       <div className="flex-1 overflow-y-auto bg-[#07000f] p-4 selectable">
         {output ? (
           <div className="space-y-0">
-            {colorizeOutput(output)}
+            {colorizeOutput(output, newFrom)}
             {running && (
               <span className="terminal-out text-[#820AD1] cursor-blink">█</span>
             )}
@@ -139,7 +154,7 @@ export default function Terminal({ output, running, exitCode, onInput, onClear }
         <div ref={bottomRef} />
       </div>
 
-      {/* Interactive input (y/n prompts) */}
+      {/* Interactive input */}
       {running && (
         <div className="flex-shrink-0 border-t border-[#4A1D7A]/40 bg-[#0a0014] p-3">
           {isPrompting ? (

@@ -23,7 +23,13 @@ const DEFAULT_CONFIG: SheetsConfig = {
 export function getConfig(): SheetsConfig {
   try {
     const raw = fs.readFileSync(CONFIG_PATH, 'utf-8')
-    return { ...DEFAULT_CONFIG, ...JSON.parse(raw) }
+    const parsed = JSON.parse(raw)
+    // Validar esquema campo a campo — ignorar claves extra o tipos incorrectos
+    return {
+      webAppUrl: typeof parsed.webAppUrl === 'string' ? parsed.webAppUrl : DEFAULT_CONFIG.webAppUrl,
+      enabled:   typeof parsed.enabled   === 'boolean' ? parsed.enabled   : DEFAULT_CONFIG.enabled,
+      autoSync:  typeof parsed.autoSync  === 'boolean' ? parsed.autoSync  : DEFAULT_CONFIG.autoSync,
+    }
   } catch {
     return { ...DEFAULT_CONFIG }
   }
@@ -61,12 +67,24 @@ export function openGoogleSignIn(parentWin: BrowserWindow, targetUrl?: string): 
         session: session.defaultSession,
         nodeIntegration: false,
         contextIsolation: true,
+        sandbox: true,
       },
     })
     authWin.setMenuBarVisibility(false)
     authWin.webContents.setUserAgent(
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
     )
+
+    // Restringe navegación solo a dominios Google — evita captura de cookies por sitios externos
+    const ALLOWED_GOOGLE = /^https:\/\/([a-z0-9-]+\.)*google\.com(\/|$)/
+    authWin.webContents.on('will-navigate', (event, url) => {
+      if (!ALLOWED_GOOGLE.test(url)) {
+        event.preventDefault()
+        console.warn('[sheetsSync] Navegación bloqueada:', url)
+      }
+    })
+    authWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
     // Si tenemos la URL del Apps Script, la cargamos directamente.
     // Google redirige al login si no hay sesión → al completar, vuelve al script
     // y quedan todas las cookies de Google Workspace en session.defaultSession.
@@ -76,13 +94,22 @@ export function openGoogleSignIn(parentWin: BrowserWindow, targetUrl?: string): 
   })
 }
 
-// ─── Verifica que la URL del Apps Script responde correctamente ──
+// ─── Valida que la URL sea un Google Apps Script legítimo ────────
+const GOOGLE_SCRIPT_URL = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec(\?.*)?$/
+
+export function isValidGoogleScriptUrl(url: string): boolean {
+  try {
+    return GOOGLE_SCRIPT_URL.test(url) && new URL(url).hostname === 'script.google.com'
+  } catch {
+    return false
+  }
+}
 
 // ─── Verifica que la URL del Apps Script responde correctamente ──
 // Usa session.fetch() que maneja cookies y SSO de Google Workspace igual que Chrome.
 
 export async function checkConnection(webAppUrl: string): Promise<boolean> {
-  if (!webAppUrl) return false
+  if (!webAppUrl || !isValidGoogleScriptUrl(webAppUrl)) return false
   try {
     const testUrl = `${webAppUrl}?after=${encodeURIComponent(new Date(0).toISOString())}&check=1`
     const res = await session.defaultSession.fetch(testUrl)
@@ -131,7 +158,7 @@ export function startSync(config: SheetsConfig, win: BrowserWindow): void {
   stopSync()
   lastPollTime = new Date(0).toISOString()
 
-  if (!config.webAppUrl || !config.enabled) return
+  if (!config.webAppUrl || !config.enabled || !isValidGoogleScriptUrl(config.webAppUrl)) return
 
   const poll = async () => {
     try {
@@ -182,7 +209,7 @@ export async function updateSheet(
   config: SheetsConfig,
   payload: UpdatePayload,
 ): Promise<UpdateResult> {
-  if (!config.webAppUrl) return { ok: false, error: 'no_url' }
+  if (!config.webAppUrl || !isValidGoogleScriptUrl(config.webAppUrl)) return { ok: false, error: 'invalid_url' }
 
   try {
     const res = await netFetch(config.webAppUrl, {
