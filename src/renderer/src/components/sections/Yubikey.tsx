@@ -20,7 +20,8 @@ export default function Yubikey({ onRun, onScript, running }: Props) {
   const handleRun = () => {
     const e = safeEmail(email)
     if (tab === 'configurar') {
-      onScript(`echo "→ Instalando brew deps..."\nbrew install yubico-piv-tool yubikey-personalization libyubikey || echo "⚠ Algunos paquetes fallaron"\necho "→ Instalando pip deps..."\npip3 install diceware pandas boto3 XlsxWriter || echo "⚠ Algunos paquetes fallaron"\nit yubikey configure "${e}" --country co`)
+      // Comillas simples: previenen expansión de $() y backticks en el shell
+      onScript(`echo "→ Instalando brew deps..."\nbrew install yubico-piv-tool yubikey-personalization libyubikey || echo "⚠ Algunos paquetes fallaron"\necho "→ Instalando pip deps..."\npip3 install diceware pandas boto3 XlsxWriter || echo "⚠ Algunos paquetes fallaron"\nit yubikey configure '${e}' --country co`)
     } else if (tab === 'scopes_co') {
       onRun('nu-co', ['sec', 'scope', 'show', e])
     } else {

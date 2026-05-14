@@ -11,10 +11,10 @@ const PORT = 3001
 // Token de sesión generado en arranque — solo válido mientras el proceso vive
 const SESSION_TOKEN = crypto.randomBytes(32).toString('hex')
 
-// Solo acepta orígenes locales (Electron renderer / localhost dev)
+// Solo acepta orígenes de localhost — file:// eliminado (ALTO-02: cualquier HTML local podría acceder)
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || /^(https?:\/\/localhost(:\d+)?|file:\/\/)/.test(origin)) {
+    if (!origin || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
       cb(null, true)
     } else {
       cb(new Error('CORS bloqueado'))
@@ -27,7 +27,8 @@ app.use(express.json())
 app.use((req, res, next) => {
   // Health check no requiere auth
   if (req.path === '/api/health') return next()
-  const token = req.headers['x-session-token'] || req.query['token']
+  // Solo header — query string excluido (ALTO-01: token en query aparece en logs de Express)
+  const token = req.headers['x-session-token']
   if (token !== SESSION_TOKEN) {
     res.status(401).json({ error: 'Unauthorized' })
     return

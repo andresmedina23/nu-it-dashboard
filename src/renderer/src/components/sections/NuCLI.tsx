@@ -88,7 +88,7 @@ export default function NuCLI({ onRun, onScript, running }: Props) {
         <div className="nu-card space-y-4">
           <FormField label="Nombre completo" id="toolio-nombre" value={nombre} onChange={setNombre}
             placeholder="NOMBRE_APELLIDO" hint="Ej: WILMAR_MEDINA" required />
-          <button onClick={() => onRun('nu-co', ['toolio', 'add', nombre])} disabled={running || !nombre.trim()} className="nu-btn-primary w-full justify-center">
+          <button onClick={() => onRun('nu-co', ['toolio', 'add', nombre.replace(/[^a-zA-Z0-9_\-]/g, '')])} disabled={running || !nombre.trim()} className="nu-btn-primary w-full justify-center">
             {running ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : '👤'}
             Añadir a Toolio
           </button>

@@ -20,13 +20,23 @@ export default function JAMF({ onRun, running }: Props) {
   const [username, setUsername] = useState('')
   const [tiempo, setTiempo] = useState('60')
 
+  // Sanitizadores — misma lógica que server/index.js para consistencia
+  const safeSerial = (s: string) => s.replace(/[^a-zA-Z0-9\-]/g, '')
+  const safeMotivo = (m: string) => m.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ .,_\-]/g, '').slice(0, 120)
+  const safeUser   = (u: string) => u.replace(/[^a-zA-Z0-9._\-@]/g, '')
+  const safeTime   = (t: string) => t.replace(/[^0-9]/g, '') || '60'
+
   const handleRun = () => {
+    const s = safeSerial(serial)
+    const m = safeMotivo(motivo)
+    const u = safeUser(username)
+    const t = safeTime(tiempo)
     const map: Record<Tab, [string, string[]]> = {
-      recovery: ['it', ['jamf', 'computer', 'get', 'recovery-key', serial, motivo || 'Soporte Técnico']],
-      ztd_enroll: ['it', ['jamf', 'computer', 'update', 'prestage-enrollment', 'ztd', serial, motivo || 'Testing CO ZTD']],
-      ztd_remove: ['it', ['jamf', 'computer', 'update', 'prestage-enrollment', 'nubank', serial, 'failure']],
-      admin: ['it', ['jamf', 'group', 'add', serial, '--localadmin', '--time', tiempo]],
-      unlock: ['it', ['jamf', 'computer', 'unlock', serial, username, motivo || 'unlock']],
+      recovery:   ['it', ['jamf', 'computer', 'get', 'recovery-key', s, m || 'Soporte Técnico']],
+      ztd_enroll: ['it', ['jamf', 'computer', 'update', 'prestage-enrollment', 'ztd', s, m || 'Testing CO ZTD']],
+      ztd_remove: ['it', ['jamf', 'computer', 'update', 'prestage-enrollment', 'nubank', s, 'failure']],
+      admin:      ['it', ['jamf', 'group', 'add', s, '--localadmin', '--time', t]],
+      unlock:     ['it', ['jamf', 'computer', 'unlock', s, u, m || 'unlock']],
     }
     onRun(...map[tab])
   }

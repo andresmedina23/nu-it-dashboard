@@ -406,9 +406,9 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
 
     if (tab === 'checkout_completo') {
       onScript(
-        `it inventory asset checkout "${username}" "${tagCode}"\n` +
+        `it inventory asset checkout '${username}' '${tagCode}'\n` +
         `echo "→ Actualizando status a In Use..."\n` +
-        `it inventory asset updatestatus "${tagCode}" --country ${country}\n` +
+        `it inventory asset updatestatus '${tagCode}' --country '${country}'\n` +
         `echo "✓ Checkout completo"`
       )
     }
@@ -418,16 +418,16 @@ export default function Inventario({ onRun, onScript, running, onAutoResponses }
     else if (tab === 'checkin_update')
       onScript(
 `echo "→ Checkin"
-it inventory asset checkin "${tagCode}" --country ${country}
+it inventory asset checkin '${tagCode}' --country '${country}'
 echo "→ Update Status"
-it inventory asset updatestatus "${tagCode}" --country ${country}
+it inventory asset updatestatus '${tagCode}' --country '${country}'
 echo "✓ Flujo completado"`
       )
     else if (tab === 'update_status')
       onRun('it', ['inventory', 'asset', 'updatestatus', tagCode])
     else if (tab === 'update_multiple') {
       const tags = multiTags.split(/[\n,\s]+/).map(toTag).filter(Boolean)
-      const lines = tags.map(t => `echo "→ ${t}..."\nit inventory asset updatestatus "${t}" --country co`).join('\n')
+      const lines = tags.map(t => `echo "→ ${t}..."\nit inventory asset updatestatus '${t}' --country co`).join('\n')
       onScript(`${lines}\necho "✓ Procesados: ${tags.length} assets"`)
     }
     else if (tab === 'crear_usuario')

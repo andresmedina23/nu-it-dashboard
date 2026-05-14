@@ -46,18 +46,17 @@ echo ""
 echo "✓ Diagnóstico completado"
 `
 
+// SEGURIDAD: curl|bash eliminado (CRIT-01) — ejecutar código remoto sin verificación es inseguro.
+// Se instruye al usuario a correr el comando manualmente en su terminal.
 const installBrewScript = `
-echo "=== Instalando Homebrew ==="
+echo "=== Instalar Homebrew ==="
 echo ""
-echo "⚠ Se pedirá tu contraseña de Mac (es normal)."
+echo "Por seguridad, Homebrew debe instalarse manualmente."
+echo "Abre Terminal.app y ejecuta:"
 echo ""
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/88ad1d840fd5b248d578e71900ef80d39f137c21/install.sh)"
+echo '  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
 echo ""
-echo "→ Configurando PATH para Apple Silicon..."
-echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
-eval "$(/opt/homebrew/bin/brew shellenv)" 2>/dev/null || true
-echo ""
-brew --version && echo "✓ Homebrew instalado correctamente" || echo "✗ Hubo un problema, revisa el output"
+echo "Una vez instalado, reinicia esta app para que detecte brew."
 `
 
 const fixDepsScript = `

@@ -85,10 +85,9 @@ export function openGoogleSignIn(parentWin: BrowserWindow, targetUrl?: string): 
     })
     authWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
-    // Si tenemos la URL del Apps Script, la cargamos directamente.
-    // Google redirige al login si no hay sesión → al completar, vuelve al script
-    // y quedan todas las cookies de Google Workspace en session.defaultSession.
-    const startUrl = targetUrl || 'https://accounts.google.com/signin/v2/identifier?hl=es'
+    // MEDIO-04: validar targetUrl antes de cargarla — previene carga de URLs arbitrarias
+    const safeTarget = targetUrl && isValidGoogleScriptUrl(targetUrl) ? targetUrl : null
+    const startUrl = safeTarget || 'https://accounts.google.com/signin/v2/identifier?hl=es'
     authWin.loadURL(startUrl)
     authWin.on('closed', () => resolve())
   })

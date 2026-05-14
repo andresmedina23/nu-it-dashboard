@@ -34,9 +34,10 @@ export default function Certificados({ onRun, onScript, running }: Props) {
     const e = safeEmail(email)
     if (tab === 'nubanker_nu') onRun('nu', ['certs', 'gen', 'nubanker', 'prod', e])
     else if (tab === 'network_nu') onRun('nu', ['certs', 'gen', 'network', 'prod', e, vlan])
-    else if (tab === 'nubanker_link') onScript(`nu-ist certs gen nubanker prod "${e}" --overwrite\nnu-ist certs gen-link nubanker "${e}"`)
-    else if (tab === 'network_link') onScript(`nu-ist certs gen network prod "${e}" "${vlan}"\nnu-ist certs gen-link network "${e}"`)
-    else if (tab === 'flujo') onScript(`echo "→ Paso 1: Certificado Nubanker"\nnu-ist certs gen nubanker prod "${e}" --overwrite\nnu-ist certs gen-link nubanker "${e}"\necho "→ Paso 2: Certificado Red"\nnu-ist certs gen network prod "${e}" "${vlan}"\nnu-ist certs gen-link network "${e}"\necho "✓ Flujo completado"`)
+    // Comillas simples: previenen expansión de $() y backticks en el shell
+    else if (tab === 'nubanker_link') onScript(`nu-ist certs gen nubanker prod '${e}' --overwrite\nnu-ist certs gen-link nubanker '${e}'`)
+    else if (tab === 'network_link') onScript(`nu-ist certs gen network prod '${e}' '${vlan}'\nnu-ist certs gen-link network '${e}'`)
+    else if (tab === 'flujo') onScript(`echo "→ Paso 1: Certificado Nubanker"\nnu-ist certs gen nubanker prod '${e}' --overwrite\nnu-ist certs gen-link nubanker '${e}'\necho "→ Paso 2: Certificado Red"\nnu-ist certs gen network prod '${e}' '${vlan}'\nnu-ist certs gen-link network '${e}'\necho "✓ Flujo completado"`)
   }
 
   const isValid = () => !!(email.trim() && (!current.needsVlan || vlan))
