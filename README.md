@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  Herramienta interna de IT Support para Nubank Colombia.<br/>
+  Herramienta internapara Nubank Colombia.<br/>
   Centraliza los comandos de los CLIs corporativos en una interfaz visual con terminal real integrada.
 </p>
 
@@ -336,5 +336,5 @@ npm run pack
 ---
 
 <p align="center">
-  <sub>Desarrollado por el equipo de IT Support · Nubank Colombia</sub>
+  <sub>Desarrollado por @Will · Nubank Colombia</sub>
 </p>
