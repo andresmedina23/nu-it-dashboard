@@ -223,20 +223,33 @@ function startEmbeddedServer() {
   })
 }
 
-app.whenReady().then(() => {
-  startEmbeddedServer()
-  createWindow()
-  buildMenu()
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+// ─── Single instance lock ───────────────────────────────────
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
   })
 
-  // Verificar actualizaciones al iniciar (solo producción)
-  if (!process.env['ELECTRON_RENDERER_URL']) {
-    setTimeout(() => checkForUpdates(false), 5000)
-  }
-})
+  app.whenReady().then(() => {
+    startEmbeddedServer()
+    createWindow()
+    buildMenu()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
+
+    // Verificar actualizaciones al iniciar (solo producción)
+    if (!process.env['ELECTRON_RENDERER_URL']) {
+      setTimeout(() => checkForUpdates(false), 5000)
+    }
+  })
+}
 
 app.on('window-all-closed', () => {
   serverProc?.kill()
