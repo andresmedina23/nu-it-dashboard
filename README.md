@@ -1,7 +1,7 @@
 # IT Dashboard — Nubank Colombia
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.18-820AD1?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/version-1.0.19-820AD1?style=for-the-badge" />
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey?style=for-the-badge&logo=apple" />
   <img src="https://img.shields.io/badge/electron-41-47848F?style=for-the-badge&logo=electron" />
   <img src="https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react" />
@@ -16,8 +16,7 @@ App de escritorio para el equipo de IT Support de Nubank Colombia. Centraliza lo
 ## Instalación
 
 1. Descarga el `.dmg` desde [**Releases**](https://github.com/andresmedina23/nu-it-dashboard/releases/latest)
-   - `IT-Dashboard-1.0.18-arm64.dmg` → Apple Silicon (M1/M2/M3/M4)
-   - `IT-Dashboard-1.0.18.dmg` → Intel
+   - `IT-Dashboard-1.0.19-arm64.dmg` → Apple Silicon (M1/M2/M3/M4)
 2. Abre el DMG y arrastra **IT Dashboard** a tu carpeta de Aplicaciones
 3. Primera vez: **clic derecho → Abrir** para aceptar en macOS Gatekeeper
 4. Listo — la app detecta actualizaciones automáticamente al iniciar
@@ -28,7 +27,7 @@ App de escritorio para el equipo de IT Support de Nubank Colombia. Centraliza lo
 
 | Requisito | Detalle |
 |---|---|
-| macOS | Apple Silicon o Intel |
+| macOS | Apple Silicon (M1/M2/M3/M4) |
 | `it` | CLI de IT Engineering |
 | `nu`, `nu-co`, `nu-ist` | CLIs de Nubank por entorno |
 | `~/.nurc` | Configurado (la app lo sourcéa antes de cada comando) |
@@ -209,7 +208,7 @@ export GH_TOKEN=$(gh auth token)
 npm run release
 ```
 
-Genera DMG + ZIP para arm64 e x64 y lo publica en GitHub Releases. Los usuarios con la app instalada reciben notificación de actualización automáticamente.
+Genera el DMG para Apple Silicon (arm64) y lo publica en GitHub Releases. Los usuarios con la app instalada reciben notificación de actualización automáticamente.
 
 Para empaquetar sin publicar (pruebas locales):
 
