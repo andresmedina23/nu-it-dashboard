@@ -407,17 +407,32 @@ const ALLOWED_COMMANDS = /^(it|nu|nu-ist|nu-co|jamf|security|networksetup|system
 ipcMain.handle('creds:status', () => parseCredentialStatus())
 ipcMain.handle('cli:discover', () => discoverCommands())
 
+// Rate limiter IPC: máximo 10 llamadas por segundo por sesión
+const ptyStartTimes: number[] = []
+function ptyRateAllow(): boolean {
+  const now = Date.now()
+  while (ptyStartTimes.length && ptyStartTimes[0] < now - 1000) ptyStartTimes.shift()
+  if (ptyStartTimes.length >= 10) return false
+  ptyStartTimes.push(now)
+  return true
+}
+
 ipcMain.handle('pty:start', (_event, { id, command, args }: { id: string; command: string; args: string[] }) => {
-  const baseCmd = command.split('/').pop() ?? command
-  if (!ALLOWED_COMMANDS.test(baseCmd)) return false
+  if (!ptyRateAllow()) return false
+
+  // Rechazar si command contiene separadores de path (path traversal)
+  if (typeof command !== 'string' || command.includes('/') || command.includes('..')) return false
+  if (!ALLOWED_COMMANDS.test(command)) return false
+  if (!Array.isArray(args) || args.some(a => typeof a !== 'string')) return false
 
   const existing = ptyMap.get(id)
   if (existing) { try { existing.kill() } catch (_) {} ; ptyMap.delete(id) }
 
   const nurcPath = findNurc()
   const shellPath = process.env.SHELL || '/bin/zsh'
-  // Usar comillas simples: bash no expande $() ni backticks dentro de comillas simples
-  const cmdStr = `source "${nurcPath}" 2>/dev/null || true\n${command} ${args.map(a => `'${a.replace(/'/g, "'\\''")}'`).join(' ')}`
+  // command ya validado contra allowlist — se pasa entre comillas simples para evitar expansión
+  const quotedCmd = `'${command}'`
+  const cmdStr = `source "${nurcPath}" 2>/dev/null || true\n${quotedCmd} ${args.map(a => `'${a.replace(/'/g, "'\\''")}'`).join(' ')}`
 
   const term = pty.spawn(shellPath, ['-c', cmdStr], {
     name: 'xterm-256color', cols: 120, rows: 40, cwd: os.homedir(), env: buildPtyEnv(),
@@ -430,17 +445,23 @@ ipcMain.handle('pty:start', (_event, { id, command, args }: { id: string; comman
 
 // Valida que cada segmento de comando (separado por &&, ||, ;, |) use comandos permitidos
 function isScriptSafe(script: string): boolean {
-  const SKIP = /^(echo|source|printf|export|:|true|false|for|if|fi|then|else|elif|do|done|while|case|esac|read)(\s|$)/
+  // 'source' eliminado del SKIP — era un bypass crítico que permitía RCE desde renderer
+  const SKIP = /^(echo|printf|export|:|true|false|for|if|fi|then|else|elif|do|done|while|case|esac|read)(\s|$)/
   const lines = script.split('\n')
   for (const raw of lines) {
     const line = raw.trim()
     if (!line || line.startsWith('#')) continue
+    // Bloquear 'source' y '.' explícitamente (evita cargar scripts arbitrarios)
+    if (/^(source|\.)(\s|$)/.test(line)) return false
     // Dividir por operadores de control para validar cada segmento individualmente
     const segments = line.split(/&&|\|\||;|\|/)
     for (const seg of segments) {
       const token = seg.trim()
       if (!token || SKIP.test(token)) continue
-      const baseCmd = token.split(/\s+/)[0].split('/').pop() ?? ''
+      // Rechazar path traversal en cada segmento
+      const cmdToken = token.split(/\s+/)[0]
+      if (cmdToken.includes('/') || cmdToken.includes('..')) return false
+      const baseCmd = cmdToken.split('/').pop() ?? ''
       if (!ALLOWED_COMMANDS.test(baseCmd)) return false
     }
   }
