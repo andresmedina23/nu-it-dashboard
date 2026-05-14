@@ -36,8 +36,7 @@ app.use((req, res, next) => {
   next()
 })
 
-// Exponer el token al proceso padre (Electron lo lee de stdout al arrancar)
-console.log(`SESSION_TOKEN=${SESSION_TOKEN}`)
+// VUL-06: token recibido por env var desde el proceso principal — no se imprime en stdout
 
 // ─── Shell escaping: envuelve en comillas simples y escapa ' internos ───
 function shellEscape(val) {
@@ -51,6 +50,11 @@ function safeTag(t) { return String(t ?? '').replace(/[^a-zA-Z0-9\-]/g, '') }
 function safeTime(t) { return String(t ?? '60').replace(/[^0-9]/g, '') || '60' }
 function safeVlan(v) { return String(v ?? '').replace(/[^0-9]/g, '') }
 function safeMotivo(m) { return String(m ?? '').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ .,_\-]/g, '').slice(0, 120) }
+// VUL-09: allowlist de países — previene flag injection (ej: --admin)
+const ALLOWED_COUNTRIES = new Set(['co', 'br', 'mx', 'ar', 'cl', 'pe'])
+function safeCountry(c) { return ALLOWED_COUNTRIES.has(String(c)) ? String(c) : 'co' }
+// VUL-07: nurcPath con comillas simples — soporta homedir con espacios o caracteres especiales
+function safeNurcPath(p) { return "'" + p.replace(/'/g, "'\\''") + "'" }
 
 // ============================================================
 // COMMAND DEFINITIONS — maps each action to shell args
@@ -220,7 +224,7 @@ const COMMANDS = {
     }).flat().concat([`echo '✓ Proceso completado'`])
   }),
   'inv.crear_usuario': ({ email, country }) => ({
-    cmd: 'it', args: ['inventory', 'user', 'create', safeEmail(email), '--country', country || 'co']
+    cmd: 'it', args: ['inventory', 'user', 'create', safeEmail(email), '--country', safeCountry(country)]
   }),
 }
 
@@ -274,21 +278,20 @@ app.get('/sse/run', (req, res) => {
   const def = Object.prototype.hasOwnProperty.call(COMMANDS, action) ? COMMANDS[action](params) : null
   if (!def) { res.status(400).json({ error: 'Invalid action' }); return }
   const shell = process.env.SHELL || '/bin/zsh'
-  const nurcPath = path.join(os.homedir(), '.nurc')
+  // VUL-07: nurcPath con comillas simples — soporta homedir con espacios o caracteres especiales
+  const nurcPath = safeNurcPath(path.join(os.homedir(), '.nurc'))
 
   let shellArgs, shellScript
 
   if (def.script) {
-    // Multi-line script
     shellScript = [
-      `source "${nurcPath}" 2>/dev/null || true`,
+      `source ${nurcPath} 2>/dev/null || true`,
       ...def.lines
     ].join('\n')
     shellArgs = ['-c', shellScript]
   } else {
-    // Single command — args sanitized; use single-quote escaping
     const cmdStr = [def.cmd, ...def.args.map(a => shellEscape(a))].join(' ')
-    shellScript = `source "${nurcPath}" 2>/dev/null || true\n${cmdStr}`
+    shellScript = `source ${nurcPath} 2>/dev/null || true\n${cmdStr}`
     shellArgs = ['-c', shellScript]
   }
 

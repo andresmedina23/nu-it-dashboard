@@ -27,6 +27,18 @@ function createWindow() {
     },
   })
 
+  // VUL-08: CSP via webRequest — defensa en profundidad contra XSS en producción
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:3001"
+        ]
+      }
+    })
+  })
+
   // Bloquea permisos no necesarios (micrófono, cámara, notificaciones, etc.)
   win.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
     const ALLOWED_PERMISSIONS = new Set(['clipboard-read', 'clipboard-sanitized-write'])
@@ -90,7 +102,7 @@ autoUpdater.on('update-downloaded', (info) => {
         app.exit(0)
       }, 500)
     } else if (response === 1) {
-      shell.openExternal('https://github.com/nubank/nu-it-dashboard/releases/latest')
+      shell.openExternal('https://github.com/andresmedina23/nu-it-dashboard/releases/latest')
     }
   })
 })
@@ -119,7 +131,7 @@ autoUpdater.on('error', (err) => {
       detail: `Descarga la última versión manualmente desde GitHub.\n\nDetalle: ${err?.message ?? String(err)}`,
       buttons: ['Abrir GitHub', 'Cerrar'],
     }).then(({ response: btn }) => {
-      if (btn === 0) shell.openExternal('https://github.com/nubank/nu-it-dashboard/releases/latest')
+      if (btn === 0) shell.openExternal('https://github.com/andresmedina23/nu-it-dashboard/releases/latest')
     })
   }
 })
@@ -203,18 +215,17 @@ function startEmbeddedServer() {
   const serverPath = join(__dirname, '../../server/index.js')
   if (!fs.existsSync(serverPath)) return
 
+  // VUL-06: token generado aquí y pasado por env var — nunca por stdout
+  const token = require('crypto').randomBytes(32).toString('hex')
+  serverToken = token
+
   serverProc = spawn(process.execPath, [serverPath], {
-    env: { ...process.env },
+    env: { ...process.env, SESSION_TOKEN: token },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
-  serverProc.stdout?.on('data', (chunk: Buffer) => {
-    const line = chunk.toString()
-    const match = line.match(/^SESSION_TOKEN=([a-f0-9]+)/)
-    if (match) {
-      serverToken = match[1]
-    }
-  })
+  // stdout ya no lleva el token — solo se loguea para debug
+  serverProc.stdout?.on('data', (_chunk: Buffer) => { /* no-op */ })
 
   serverProc.on('exit', (code) => {
     console.log(`[server] proceso terminó con código ${code}`)
@@ -469,6 +480,7 @@ function isScriptSafe(script: string): boolean {
 }
 
 ipcMain.handle('pty:script', (_event, { id, script }: { id: string; script: string }) => {
+  if (!ptyRateAllow()) return false   // VUL-05: rate limit igual que pty:start
   if (typeof script !== 'string' || script.length > 32_000) return false
   if (!isScriptSafe(script)) return false
 

@@ -21,7 +21,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeAllListeners(`pty:data:${id}`)
   },
   onPtyExit: (id: string, cb: (code: number) => void) => {
-    ipcRenderer.once(`pty:exit:${id}`, (_, code) => cb(code))
+    const handler = (_: Electron.IpcRendererEvent, code: number) => cb(code)
+    ipcRenderer.once(`pty:exit:${id}`, handler)
+    // VUL-12: retorna función de cleanup para cancelar el listener si la sesión cambia antes de que termine
+    return () => ipcRenderer.removeListener(`pty:exit:${id}`, handler)
   },
 
   // Shell

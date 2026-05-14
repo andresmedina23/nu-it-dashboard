@@ -76,7 +76,10 @@ export function usePty(autoResponses?: AutoResponse[], currentSection?: Section)
 
     })
 
-    window.electronAPI.onPtyExit(id, (code) => {
+    // VUL-12: guardar removeExit para cancelarlo si se inicia una nueva sesión antes de que termine
+    const removeExit = window.electronAPI.onPtyExit(id, (code) => {
+      // Solo actualizar estado si este id sigue siendo la sesión activa
+      if (sessionIdRef.current !== id) return
       setRunning(false)
       setExitCode(code)
       const finalOutput = outputBufRef.current
@@ -86,7 +89,8 @@ export function usePty(autoResponses?: AutoResponse[], currentSection?: Section)
       ))
     })
 
-    cleanupRef.current = removeData
+    cleanupRef.current = () => { removeData(); removeExit?.() }
+
     return id
   }, [])
 
