@@ -27,17 +27,19 @@ function createWindow() {
     },
   })
 
-  // VUL-08: CSP via webRequest — defensa en profundidad contra XSS en producción
-  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:3001"
-        ]
-      }
+  // VUL-08: CSP via webRequest — solo en producción (en dev Vite necesita unsafe-eval)
+  if (!process.env['ELECTRON_RENDERER_URL']) {
+    win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:3001"
+          ]
+        }
+      })
     })
-  })
+  }
 
   // Bloquea permisos no necesarios (micrófono, cámara, notificaciones, etc.)
   win.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
