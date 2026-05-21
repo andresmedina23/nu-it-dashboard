@@ -434,7 +434,7 @@ echo "✓ Flujo completado"`
       }
       const batchScripts = batches.map((batch, idx) =>
         `echo "→ Lote ${idx + 1}/${batches.length} (${batch.length} assets en paralelo)..."\n` +
-        batch.map(t => `it inventory asset updatestatus '${t}' --country co &`).join('\n') +
+        batch.map(t => `echo '${statusNum}' | it inventory asset updatestatus '${t}' --country co &`).join('\n') +
         `\nwait\necho "✓ Lote ${idx + 1}/${batches.length} completado"`
       ).join('\n')
       onScript(`${batchScripts}\necho "✓ Total procesados: ${tags.length} assets"`)

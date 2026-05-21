@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.22-820AD1?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/version-1.0.23-820AD1?style=for-the-badge" />
   <img src="https://img.shields.io/badge/platform-Apple%20Silicon-lightgrey?style=for-the-badge&logo=apple" />
   <img src="https://img.shields.io/badge/electron-41-47848F?style=for-the-badge&logo=electron" />
   <img src="https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react" />
@@ -36,7 +36,7 @@
 1. Descarga el instalador desde [**GitHub Releases**](https://github.com/andresmedina23/nu-it-dashboard/releases/latest):
 
    ```
-   IT-Dashboard-1.0.22-arm64.dmg   →   Apple Silicon (M1 / M2 / M3 / M4 / M5)
+   IT-Dashboard-1.0.23-arm64.dmg   →   Apple Silicon (M1 / M2 / M3 / M4 / M5)
    ```
 
 2. Abre el `.dmg` y arrastra **IT Dashboard** a la carpeta **Aplicaciones**
@@ -153,7 +153,7 @@ Gestión de activos IT Colombia (Snipe-IT vía CLI `it`), con sincronización op
 | **Checkin** | Devuelve un activo al inventario |
 | **Checkin + Update** | Checkin y actualiza el estado en una sola operación |
 | **Update Status** | Cambia el estado de un activo individual |
-| **Update Múltiple** | Cambia el estado de varios activos simultáneamente (uno por línea) |
+| **Update Múltiple** | Cambia el estado de varios activos en **lotes de 10 en paralelo** — el número de status se pasa directo al CLI sin prompt interactivo |
 | **Crear Usuario** | Crea un usuario nuevo en el inventario |
 
 > El asset tag acepta `FVFKDC8C1WFV` o `CO-FVFKDC8C1WFV` — el prefijo `CO-` se agrega automáticamente.
