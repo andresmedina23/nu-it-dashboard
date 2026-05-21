@@ -9,22 +9,18 @@ echo "→ Actualizando nu..."
 nu update || echo "⚠ Falló nu update"
 echo "→ Actualizando it..."
 it update || echo "⚠ Falló it update"
-echo "→ Refresh AWS nu..."
-nu aws credentials refresh || echo "⚠ Falló"
-echo "→ Refresh token nu..."
-nu auth get-refresh-token || echo "⚠ Falló"
-echo "→ Access token nu..."
-nu auth get-access-token || echo "⚠ Falló"
+echo "→ Refresh token IST..."
+nu-ist auth get-refresh-token --env prod || echo "⚠ Falló nu-ist refresh-token"
+echo "→ Access token IST..."
+nu-ist auth get-access-token --env prod || echo "⚠ Falló nu-ist access-token"
+echo "→ Refresh AWS CO..."
+nu aws shared-role-credentials refresh --account-alias=co || echo "⚠ Falló aws shared-role CO"
 echo "→ Actualizando nu-co..."
 nu-co update || echo "⚠ Falló nu-co update"
-echo "→ Refresh AWS nu-co..."
-nu-co aws credentials refresh || echo "⚠ Falló"
 echo "→ Refresh token nu-co..."
-nu-co auth get-refresh-token || echo "⚠ Falló"
+nu-co auth get-refresh-token --env prod --country co || echo "⚠ Falló nu-co refresh-token"
 echo "→ Access token nu-co..."
-nu-co auth get-access-token || echo "⚠ Falló"
-echo "→ Access token PROD CO..."
-nu-co auth get-access-token --env prod --country co || echo "⚠ Falló"
+nu-co auth get-access-token --env prod --country co || echo "⚠ Falló nu-co access-token"
 echo ""
 echo "✓ Actualización completada"
 `.trim()
@@ -58,11 +54,19 @@ export default function NuCLI({ onRun, onScript, running }: Props) {
 
       {tab === 'refresh' && (
         <div className="nu-card space-y-4">
-          <p className="text-sm text-[#C9B3D9]/60">Refresca credenciales AWS para <code className="text-[#A842FF] bg-[#820AD1]/10 px-1 rounded">nu-ist</code>.</p>
+          <p className="text-sm text-[#C9B3D9]/60">Refresca credenciales AWS para <code className="text-[#A842FF] bg-[#820AD1]/10 px-1 rounded">co</code> + tokens <code className="text-[#A842FF] bg-[#820AD1]/10 px-1 rounded">nu-ist</code> y <code className="text-[#A842FF] bg-[#820AD1]/10 px-1 rounded">nu-co</code>.</p>
           <code className="block text-[11px] text-[#C9B3D9]/50 bg-[#0F001E] rounded-lg p-3 font-mono">
-            $ nu-ist aws credentials refresh
+            $ nu-ist auth get-refresh-token --env prod{'\n'}
+            $ nu aws shared-role-credentials refresh --account-alias=co{'\n'}
+            $ nu-co auth get-refresh-token --env prod --country co
           </code>
-          <button onClick={() => onRun('nu-ist', ['aws', 'credentials', 'refresh'])} disabled={running} className="nu-btn-primary w-full justify-center">
+          <button onClick={() => onScript(
+            'nu-ist auth get-refresh-token --env prod || echo "⚠ Falló nu-ist"\n' +
+            'nu aws shared-role-credentials refresh --account-alias=co || echo "⚠ Falló aws CO"\n' +
+            'nu-co auth get-refresh-token --env prod --country co || echo "⚠ Falló nu-co"\n' +
+            'nu-co auth get-access-token --env prod --country co || echo "⚠ Falló nu-co access"\n' +
+            'echo "✓ Credenciales actualizadas"'
+          )} disabled={running} className="nu-btn-primary w-full justify-center">
             {running ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : '🔄'}
             Refresh Credenciales
           </button>

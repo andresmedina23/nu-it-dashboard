@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.19-820AD1?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/version-1.0.22-820AD1?style=for-the-badge" />
   <img src="https://img.shields.io/badge/platform-Apple%20Silicon-lightgrey?style=for-the-badge&logo=apple" />
   <img src="https://img.shields.io/badge/electron-41-47848F?style=for-the-badge&logo=electron" />
   <img src="https://img.shields.io/badge/react-18-61DAFB?style=for-the-badge&logo=react" />
@@ -36,7 +36,7 @@
 1. Descarga el instalador desde [**GitHub Releases**](https://github.com/andresmedina23/nu-it-dashboard/releases/latest):
 
    ```
-   IT-Dashboard-1.0.19-arm64.dmg   →   Apple Silicon (M1 / M2 / M3 / M4)
+   IT-Dashboard-1.0.22-arm64.dmg   →   Apple Silicon (M1 / M2 / M3 / M4 / M5)
    ```
 
 2. Abre el `.dmg` y arrastra **IT Dashboard** a la carpeta **Aplicaciones**
@@ -51,7 +51,7 @@
 
 | Requisito | Detalle |
 |---|---|
-| macOS | Apple Silicon — M1, M2, M3 o M4 |
+| macOS | Apple Silicon — M1, M2, M3, M4 o M5 |
 | `it` | CLI de IT Engineering |
 | `nu` / `nu-co` / `nu-ist` | CLIs de Nubank por entorno |
 | `~/.nurc` | Archivo de configuración Nubank (sourcéado antes de cada comando) |
@@ -81,9 +81,11 @@ También incluye acceso guiado para instalar **Homebrew**, **bash 5** y **gawk**
 
 | Tab | Descripción |
 |---|---|
-| **Refresh AWS** | Ejecuta `nu-ist aws credentials refresh` |
-| **Login Completo** | Actualiza `it`, `nu` y `nu-co`; renueva tokens AWS y OAuth para todos los entornos |
+| **Refresh AWS** | Renueva token IST (`nu-ist auth get-refresh-token --env prod`) + credenciales CO (`nu aws shared-role-credentials refresh --account-alias=co`) + tokens OAuth `nu-co` |
+| **Login Completo** | Actualiza `it`, `nu` y `nu-co`; renueva tokens IST, credenciales AWS CO y tokens OAuth para todos los entornos |
 | **Toolio** | Agrega un usuario a Toolio vía `nu-co toolio add` |
+
+> **Nota:** Los comandos de credenciales siguen la guía oficial de Confluence (ITKB). Se usa `nu aws shared-role-credentials refresh` en lugar del deprecado `nu aws credentials refresh`.
 
 ---
 
