@@ -451,15 +451,19 @@ ipcMain.handle('pty:start', (_event, { id, command, args }: { id: string; comman
     name: 'xterm-256color', cols: 120, rows: 40, cwd: os.homedir(), env: buildPtyEnv(),
   })
   ptyMap.set(id, term)
-  term.onData((data) => { win?.webContents.send(`pty:data:${id}`, data) })
-  term.onExit(({ exitCode }) => { win?.webContents.send(`pty:exit:${id}`, exitCode); ptyMap.delete(id) })
+  const safeSend = (ch: string, ...args: unknown[]) => {
+    if (win && !win.isDestroyed() && win.webContents && !win.webContents.isDestroyed())
+      win.webContents.send(ch, ...args)
+  }
+  term.onData((data) => safeSend(`pty:data:${id}`, data))
+  term.onExit(({ exitCode }) => { safeSend(`pty:exit:${id}`, exitCode); ptyMap.delete(id) })
   return true
 })
 
 // Valida que cada segmento de comando (separado por &&, ||, ;, |) use comandos permitidos
 function isScriptSafe(script: string): boolean {
   // 'source' eliminado del SKIP — era un bypass crítico que permitía RCE desde renderer
-  const SKIP = /^(echo|printf|export|:|true|false|for|if|fi|then|else|elif|do|done|while|case|esac|read)(\s|$)/
+  const SKIP = /^(echo|printf|export|:|true|false|for|if|fi|then|else|elif|do|done|while|wait|case|esac|read)(\s|$)/
   const lines = script.split('\n')
   for (const raw of lines) {
     const line = raw.trim()
@@ -497,8 +501,12 @@ ipcMain.handle('pty:script', (_event, { id, script }: { id: string; script: stri
     name: 'xterm-256color', cols: 120, rows: 40, cwd: os.homedir(), env: buildPtyEnv(),
   })
   ptyMap.set(id, term)
-  term.onData((data) => { win?.webContents.send(`pty:data:${id}`, data) })
-  term.onExit(({ exitCode }) => { win?.webContents.send(`pty:exit:${id}`, exitCode); ptyMap.delete(id) })
+  const safeSend2 = (ch: string, ...args: unknown[]) => {
+    if (win && !win.isDestroyed() && win.webContents && !win.webContents.isDestroyed())
+      win.webContents.send(ch, ...args)
+  }
+  term.onData((data) => safeSend2(`pty:data:${id}`, data))
+  term.onExit(({ exitCode }) => { safeSend2(`pty:exit:${id}`, exitCode); ptyMap.delete(id) })
   return true
 })
 

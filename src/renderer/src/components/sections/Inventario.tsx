@@ -427,8 +427,17 @@ echo "✓ Flujo completado"`
       onRun('it', ['inventory', 'asset', 'updatestatus', tagCode])
     else if (tab === 'update_multiple') {
       const tags = multiTags.split(/[\n,\s]+/).map(toTag).filter(Boolean)
-      const lines = tags.map(t => `echo "→ ${t}..."\nit inventory asset updatestatus '${t}' --country co`).join('\n')
-      onScript(`${lines}\necho "✓ Procesados: ${tags.length} assets"`)
+      const batchSize = 10
+      const batches: string[][] = []
+      for (let i = 0; i < tags.length; i += batchSize) {
+        batches.push(tags.slice(i, i + batchSize))
+      }
+      const batchScripts = batches.map((batch, idx) =>
+        `echo "→ Lote ${idx + 1}/${batches.length} (${batch.length} assets en paralelo)..."\n` +
+        batch.map(t => `it inventory asset updatestatus '${t}' --country co &`).join('\n') +
+        `\nwait\necho "✓ Lote ${idx + 1}/${batches.length} completado"`
+      ).join('\n')
+      onScript(`${batchScripts}\necho "✓ Total procesados: ${tags.length} assets"`)
     }
     else if (tab === 'crear_usuario')
       onRun('it', ['inventory', 'user', 'create', username, '--country', country])
