@@ -35,6 +35,7 @@
   "build": {
     "appId": "co.nubank.it-dashboard",
     "productName": "IT-Dashboard",
+    "afterPack": "scripts/after-pack.js",
     "asar": true,
     "asarUnpack": [
       "**/node_modules/node-pty/**",
