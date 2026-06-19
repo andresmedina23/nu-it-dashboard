@@ -1,0 +1,61 @@
+import { contextBridge, ipcRenderer } from 'electron'
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  // Credentials
+  getCredStatus: () => ipcRenderer.invoke('creds:status'),
+  discoverCLI: () => ipcRenderer.invoke('cli:discover'),
+
+  // PTY
+  ptyStart: (id: string, command: string, args: string[]) =>
+    ipcRenderer.invoke('pty:start', { id, command, args }),
+  ptyScript: (id: string, script: string) =>
+    ipcRenderer.invoke('pty:script', { id, script }),
+  ptyInput: (id: string, data: string) =>
+    ipcRenderer.send('pty:input', { id, data }),
+  ptyKill: (id: string) =>
+    ipcRenderer.send('pty:kill', id),
+  ptyResize: (id: string, cols: number, rows: number) =>
+    ipcRenderer.send('pty:resize', { id, cols, rows }),
+  onPtyData: (id: string, cb: (data: string) => void) => {
+    ipcRenderer.on(`pty:data:${id}`, (_, d) => cb(d))
+    return () => ipcRenderer.removeAllListeners(`pty:data:${id}`)
+  },
+  onPtyExit: (id: string, cb: (code: number) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, code: number) => cb(code)
+    ipcRenderer.once(`pty:exit:${id}`, handler)
+    // VUL-12: retorna función de cleanup para cancelar el listener si la sesión cambia antes de que termine
+    return () => ipcRenderer.removeListener(`pty:exit:${id}`, handler)
+  },
+
+  // Shell
+  openExternal: (url: string) => ipcRenderer.send('shell:open', url),
+
+
+  // Google Sheets Sync
+  sheetsConfigGet: () => ipcRenderer.invoke('sheets:config:get'),
+  sheetsConfigSet: (cfg: object) => ipcRenderer.invoke('sheets:config:set', cfg),
+  sheetsStart: () => ipcRenderer.invoke('sheets:start'),
+  sheetsStop: () => ipcRenderer.send('sheets:stop'),
+  sheetsUpdate: (payload: { serial: string; action: string; status?: string }) =>
+    ipcRenderer.invoke('sheets:update', payload),
+  onSheetsChange: (cb: (changes: unknown[]) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, changes: unknown[]) => cb(changes)
+    ipcRenderer.on('sheets:change', handler)
+    return () => ipcRenderer.removeListener('sheets:change', handler)
+  },
+  sheetsCheckConnection: (webAppUrl: string) => ipcRenderer.invoke('sheets:connection:check', webAppUrl),
+  sheetsSignIn: () => ipcRenderer.invoke('sheets:signin'),
+  sheetsQuery: (serial: string) => ipcRenderer.invoke('sheets:query', serial),
+
+  // Google Workspace — OAuth + Sheets
+  gwStatus: () => ipcRenderer.invoke('gw:status'),
+  gwCredentialsSave: (creds: { clientId: string; clientSecret: string }) =>
+    ipcRenderer.invoke('gw:credentials:save', creds),
+  gwAuth: () => ipcRenderer.invoke('gw:auth'),
+  gwSignOut: () => ipcRenderer.invoke('gw:signout'),
+  gwSheetsConfigGet: () => ipcRenderer.invoke('gw:sheets:config:get'),
+  gwSheetsConfigSet: (cfg: { spreadsheetId: string; sheetName: string }) =>
+    ipcRenderer.invoke('gw:sheets:config:set', cfg),
+  gwSheetsUpdateSerial: (payload: { serial: string; action: string; status?: string }) =>
+    ipcRenderer.invoke('gw:sheets:update-serial', payload),
+})
